@@ -103,7 +103,7 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 			title = req.Title
 		}
 	} else {
-		url = ""
+		url = req.Reference
 		if req.Title == "" {
 			title = req.Reference
 		} else {
@@ -135,7 +135,7 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 				input.ChecksumAlgorithm = "SHA-256"
 			}
 		}
-	} else if url != "" && s.checksumConfig != nil {
+	} else if (strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://")) && s.checksumConfig != nil {
 		// Automatically compute checksum for remote URLs if enabled
 		checksumResult := s.computeChecksumForURL(ctx, url)
 		if checksumResult != nil {
@@ -457,7 +457,7 @@ func (s *DocumentService) FindOrCreateDocument(ctx context.Context, ref string, 
 	if refType == ReferenceTypeReference {
 		input := models.DocumentInput{
 			Title: title,
-			URL:   "",
+			URL:   ref,
 		}
 
 		doc, err := s.repo.Create(ctx, ref, input, createdBy)

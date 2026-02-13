@@ -11,11 +11,13 @@ import (
 	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/dbctx"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/google/uuid"
 )
 
 // Joined view of a delivery with webhook send data
 type WebhookDeliveryItem struct {
 	ID            int64
+	TenantID      uuid.UUID
 	WebhookID     int64
 	EventType     string
 	EventID       string
@@ -98,7 +100,7 @@ func (r *WebhookDeliveryRepository) GetNextToProcess(ctx context.Context, limit 
             WHERE wd.id IN (SELECT id FROM picked)
             RETURNING wd.*
         )
-        SELECT u.id, u.webhook_id, u.event_type, u.event_id, u.payload, u.status, u.retry_count, u.max_retries, u.priority, u.scheduled_for,
+        SELECT u.id, u.tenant_id, u.webhook_id, u.event_type, u.event_id, u.payload, u.status, u.retry_count, u.max_retries, u.priority, u.scheduled_for,
                w.target_url, w.secret, w.headers
         FROM upd u
         JOIN webhooks w ON w.id = u.webhook_id
@@ -113,7 +115,7 @@ func (r *WebhookDeliveryRepository) GetNextToProcess(ctx context.Context, limit 
 		var headersJSON models.NullRawMessage
 		item := &WebhookDeliveryItem{}
 		if err := rows.Scan(
-			&item.ID, &item.WebhookID, &item.EventType, &item.EventID, &item.Payload, &item.Status, &item.RetryCount, &item.MaxRetries, &item.Priority, &item.ScheduledFor,
+			&item.ID, &item.TenantID, &item.WebhookID, &item.EventType, &item.EventID, &item.Payload, &item.Status, &item.RetryCount, &item.MaxRetries, &item.Priority, &item.ScheduledFor,
 			&item.TargetURL, &item.Secret, &headersJSON,
 		); err != nil {
 			return nil, err
@@ -140,7 +142,7 @@ func (r *WebhookDeliveryRepository) GetRetryable(ctx context.Context, limit int)
             WHERE wd.id IN (SELECT id FROM picked)
             RETURNING wd.*
         )
-        SELECT u.id, u.webhook_id, u.event_type, u.event_id, u.payload, u.status, u.retry_count, u.max_retries, u.priority, u.scheduled_for,
+        SELECT u.id, u.tenant_id, u.webhook_id, u.event_type, u.event_id, u.payload, u.status, u.retry_count, u.max_retries, u.priority, u.scheduled_for,
                w.target_url, w.secret, w.headers
         FROM upd u
         JOIN webhooks w ON w.id = u.webhook_id
@@ -155,7 +157,7 @@ func (r *WebhookDeliveryRepository) GetRetryable(ctx context.Context, limit int)
 		var headersJSON models.NullRawMessage
 		item := &WebhookDeliveryItem{}
 		if err := rows.Scan(
-			&item.ID, &item.WebhookID, &item.EventType, &item.EventID, &item.Payload, &item.Status, &item.RetryCount, &item.MaxRetries, &item.Priority, &item.ScheduledFor,
+			&item.ID, &item.TenantID, &item.WebhookID, &item.EventType, &item.EventID, &item.Payload, &item.Status, &item.RetryCount, &item.MaxRetries, &item.Priority, &item.ScheduledFor,
 			&item.TargetURL, &item.Secret, &headersJSON,
 		); err != nil {
 			return nil, err

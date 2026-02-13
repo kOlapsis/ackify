@@ -152,7 +152,7 @@ func (r *EmailQueueRepository) GetNextToProcess(ctx context.Context, limit int) 
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING
-			id, to_addresses, cc_addresses, bcc_addresses,
+			id, tenant_id, to_addresses, cc_addresses, bcc_addresses,
 			subject, template, locale, data, headers,
 			status, priority, retry_count, max_retries,
 			created_at, scheduled_for, processed_at, next_retry_at,
@@ -170,6 +170,7 @@ func (r *EmailQueueRepository) GetNextToProcess(ctx context.Context, limit int) 
 		item := &models.EmailQueueItem{}
 		err := rows.Scan(
 			&item.ID,
+			&item.TenantID,
 			pq.Array(&item.ToAddresses),
 			pq.Array(&item.CcAddresses),
 			pq.Array(&item.BccAddresses),
@@ -341,7 +342,7 @@ func (r *EmailQueueRepository) GetRetryableEmails(ctx context.Context, limit int
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING
-			id, to_addresses, cc_addresses, bcc_addresses,
+			id, tenant_id, to_addresses, cc_addresses, bcc_addresses,
 			subject, template, locale, data, headers,
 			status, priority, retry_count, max_retries,
 			created_at, scheduled_for, processed_at, next_retry_at,
@@ -359,6 +360,7 @@ func (r *EmailQueueRepository) GetRetryableEmails(ctx context.Context, limit int
 		item := &models.EmailQueueItem{}
 		err := rows.Scan(
 			&item.ID,
+			&item.TenantID,
 			pq.Array(&item.ToAddresses),
 			pq.Array(&item.CcAddresses),
 			pq.Array(&item.BccAddresses),

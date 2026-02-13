@@ -19,6 +19,7 @@ import (
 	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/tenant"
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/google/uuid"
 )
 
 // DeliveryRepository is the minimal interface used by the worker
@@ -164,27 +165,8 @@ func (w *Worker) performCleanup() {
 	ctx, cancel := context.WithTimeout(w.ctx, 5*time.Minute)
 	defer cancel()
 
-	var deleted int64
-	var err error
-
-	// Use RLS context if db and tenants are available
-	if w.db != nil && w.tenants != nil {
-		tenantID, tenantErr := w.tenants.CurrentTenant(ctx)
-		if tenantErr != nil {
-			logger.Logger.Error("Failed to get tenant for webhook cleanup", "error", tenantErr.Error())
-			return
-		}
-
-		err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-			var cleanupErr error
-			deleted, cleanupErr = w.repo.CleanupOld(txCtx, w.cfg.CleanupAge)
-			return cleanupErr
-		})
-	} else {
-		// No RLS - direct repository access (for tests)
-		deleted, err = w.repo.CleanupOld(ctx, w.cfg.CleanupAge)
-	}
-
+	// Cleanup is a cross-tenant background job — no RLS needed
+	deleted, err := w.repo.CleanupOld(ctx, w.cfg.CleanupAge)
 	if err != nil {
 		logger.Logger.Error("Failed to cleanup webhook deliveries", "error", err.Error())
 	} else if deleted > 0 {
@@ -196,36 +178,11 @@ func (w *Worker) processBatch() {
 	ctx, cancel := context.WithTimeout(w.ctx, 5*time.Minute)
 	defer cancel()
 
-	var items []*database.WebhookDeliveryItem
-	var err error
-
-	// Use RLS context if db and tenants are available
-	if w.db != nil && w.tenants != nil {
-		tenantID, tenantErr := w.tenants.CurrentTenant(ctx)
-		if tenantErr != nil {
-			logger.Logger.Error("Failed to get tenant for webhook worker", "error", tenantErr.Error())
-			return
-		}
-
-		err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-			var fetchErr error
-			items, fetchErr = w.repo.GetNextToProcess(txCtx, w.cfg.BatchSize)
-			if fetchErr != nil {
-				return fetchErr
-			}
-			if len(items) == 0 {
-				items, fetchErr = w.repo.GetRetryable(txCtx, w.cfg.BatchSize)
-			}
-			return fetchErr
-		})
-	} else {
-		// No RLS - direct repository access (for tests)
-		items, err = w.repo.GetNextToProcess(ctx, w.cfg.BatchSize)
-		if err == nil && len(items) == 0 {
-			items, err = w.repo.GetRetryable(ctx, w.cfg.BatchSize)
-		}
+	// Fetch pending items across all tenants (no RLS for background SELECT)
+	items, err := w.repo.GetNextToProcess(ctx, w.cfg.BatchSize)
+	if err == nil && len(items) == 0 {
+		items, err = w.repo.GetRetryable(ctx, w.cfg.BatchSize)
 	}
-
 	if err != nil {
 		logger.Logger.Error("Failed to get webhook deliveries", "error", err.Error())
 		return
@@ -243,10 +200,9 @@ func (w *Worker) processBatch() {
 			defer wg.Done()
 			defer func() { <-sem }()
 
-			// Use RLS context if available
-			if w.db != nil && w.tenants != nil {
-				tenantID, _ := w.tenants.CurrentTenant(ctx)
-				err := tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
+			// Use per-item tenant RLS context for processing/updating
+			if w.db != nil && item.TenantID != uuid.Nil {
+				err := tenant.WithTenantContext(ctx, w.db, item.TenantID, func(txCtx context.Context) error {
 					w.processOne(txCtx, item)
 					return nil
 				})

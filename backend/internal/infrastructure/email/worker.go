@@ -14,6 +14,7 @@ import (
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/google/uuid"
 )
 
 // EmailErrorType represents the category of an email sending error
@@ -227,60 +228,46 @@ func (w *Worker) processBatch() {
 	ctx, cancel := context.WithTimeout(w.ctx, 5*time.Minute)
 	defer cancel()
 
-	// Get tenant ID for RLS context
-	tenantID, err := w.tenants.CurrentTenant(ctx)
-	if err != nil {
-		logger.Logger.Error("Failed to get tenant for email worker", "error", err.Error())
-		return
+	// Fetch pending emails across all tenants (no RLS for background SELECT)
+	emails, err := w.queueRepo.GetNextToProcess(ctx, w.batchSize)
+	if err == nil && len(emails) == 0 {
+		emails, err = w.queueRepo.GetRetryableEmails(ctx, w.batchSize)
 	}
-
-	// Get next batch of emails within tenant context
-	var emails []*models.EmailQueueItem
-	err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-		var fetchErr error
-		emails, fetchErr = w.queueRepo.GetNextToProcess(txCtx, w.batchSize)
-		if fetchErr != nil {
-			return fetchErr
-		}
-		if len(emails) == 0 {
-			// Also check for retryable emails
-			emails, fetchErr = w.queueRepo.GetRetryableEmails(txCtx, w.batchSize)
-		}
-		return fetchErr
-	})
 	if err != nil {
 		logger.Logger.Error("Failed to get emails to process", "error", err.Error())
 		return
 	}
 
 	if len(emails) == 0 {
-		return // Nothing to process
+		return
 	}
 
 	logger.Logger.Debug("Processing email batch", "count", len(emails))
 
-	// Process emails concurrently with limited concurrency
-	// Each goroutine gets its own tenant context (transaction)
 	sem := make(chan struct{}, w.maxConcurrent)
 	var wg sync.WaitGroup
 
 	for _, email := range emails {
 		wg.Add(1)
-		sem <- struct{}{} // Acquire semaphore
+		sem <- struct{}{}
 
 		go func(item *models.EmailQueueItem) {
 			defer wg.Done()
-			defer func() { <-sem }() // Release semaphore
+			defer func() { <-sem }()
 
-			// Each email processing gets its own RLS transaction
-			err := tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-				w.processEmail(txCtx, item)
-				return nil
-			})
-			if err != nil {
-				logger.Logger.Error("Failed to process email with tenant context",
-					"id", item.ID,
-					"error", err.Error())
+			// Use per-item tenant RLS context for processing/updating
+			if w.db != nil && item.TenantID != uuid.Nil {
+				err := tenant.WithTenantContext(ctx, w.db, item.TenantID, func(txCtx context.Context) error {
+					w.processEmail(txCtx, item)
+					return nil
+				})
+				if err != nil {
+					logger.Logger.Error("Failed to process email with tenant context",
+						"id", item.ID,
+						"error", err.Error())
+				}
+			} else {
+				w.processEmail(ctx, item)
 			}
 		}(email)
 	}
@@ -425,19 +412,8 @@ func (w *Worker) performCleanup() {
 	ctx, cancel := context.WithTimeout(w.ctx, 5*time.Minute)
 	defer cancel()
 
-	// Get tenant ID for RLS context
-	tenantID, err := w.tenants.CurrentTenant(ctx)
-	if err != nil {
-		logger.Logger.Error("Failed to get tenant for email cleanup", "error", err.Error())
-		return
-	}
-
-	var deleted int64
-	err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-		var cleanupErr error
-		deleted, cleanupErr = w.queueRepo.CleanupOldEmails(txCtx, w.cleanupAge)
-		return cleanupErr
-	})
+	// Cleanup is a cross-tenant background job — no RLS needed
+	deleted, err := w.queueRepo.CleanupOldEmails(ctx, w.cleanupAge)
 	if err != nil {
 		logger.Logger.Error("Failed to cleanup old emails", "error", err.Error())
 		return
