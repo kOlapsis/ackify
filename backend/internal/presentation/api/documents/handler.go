@@ -4,6 +4,7 @@ package documents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,6 +18,14 @@ import (
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 )
+
+// QuotaRecorder tracks document quota usage.
+// Satisfied by the adapter in the router package to avoid import cycles with pkg/web.
+type QuotaRecorder interface {
+	CheckDocumentCreation(ctx context.Context, tenantID string) error
+	RecordDocumentCreation(ctx context.Context, tenantID string) error
+	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+}
 
 // documentService defines the interface for document operations
 type documentService interface {
@@ -62,6 +71,8 @@ type Handler struct {
 	adminService     adminService
 	webhookPublisher webhookPublisher
 	authorizer       providers.Authorizer
+	quotaRecorder    QuotaRecorder
+	tenantProvider   providers.TenantProvider
 	baseURL          string
 }
 
@@ -78,6 +89,13 @@ func NewHandler(
 		webhookPublisher: publisher,
 		authorizer:       authorizer,
 	}
+}
+
+// WithQuotaRecorder sets the quota recorder for document creation tracking.
+func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
+	h.quotaRecorder = recorder
+	h.tenantProvider = tp
+	return h
 }
 
 // WithAdminService sets the admin service for owner-based document management.
@@ -116,6 +134,18 @@ type SignatureDTO struct {
 type CreateDocumentRequest struct {
 	Reference string `json:"reference"`
 	Title     string `json:"title,omitempty"`
+}
+
+// getTenantID returns the current tenant ID as a string, or empty if unavailable.
+func (h *Handler) getTenantID(ctx context.Context) string {
+	if h.tenantProvider == nil {
+		return ""
+	}
+	tid, err := h.tenantProvider.CurrentTenant(ctx)
+	if err != nil {
+		return ""
+	}
+	return tid.String()
 }
 
 // CreateDocumentResponse represents the response for creating a document
@@ -171,6 +201,17 @@ func (h *Handler) HandleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		"has_title", req.Title != "",
 		"remote_addr", r.RemoteAddr)
 
+	// Quota check before creation
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckDocumentCreation(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded: "+err.Error(), nil)
+				return
+			}
+		}
+	}
+
 	docRequest := services.CreateDocumentRequest{
 		Reference: req.Reference,
 		Title:     req.Title,
@@ -178,6 +219,12 @@ func (h *Handler) HandleCreateDocument(w http.ResponseWriter, r *http.Request) {
 
 	doc, err := h.documentService.CreateDocument(ctx, docRequest)
 	if err != nil {
+		if errors.Is(err, services.ErrDocumentAlreadyExists) {
+			logger.Logger.Warn("Document already exists (possibly soft-deleted)",
+				"reference", req.Reference)
+			shared.WriteConflict(w, "A document with this reference already exists. It may have been deleted. Please use a different reference.")
+			return
+		}
 		logger.Logger.Error("Document creation failed in handler",
 			"reference", req.Reference,
 			"error", err.Error())
@@ -189,6 +236,18 @@ func (h *Handler) HandleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		"doc_id", doc.DocID,
 		"title", doc.Title,
 		"has_url", doc.URL != "")
+
+	// Record quota usage after successful creation
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordDocumentCreation(ctx, tenantID); err != nil {
+				logger.Logger.Error("Failed to record document creation quota",
+					"tenant_id", tenantID,
+					"error", err.Error())
+			}
+		}
+	}
 
 	// Publish webhook event
 	if h.webhookPublisher != nil {
@@ -575,9 +634,27 @@ func (h *Handler) HandleFindOrCreateDocument(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Quota check before creation
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckDocumentCreation(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded: "+err.Error(), nil)
+				return
+			}
+		}
+	}
+
 	// User is authenticated, create the document
 	doc, isNew, err := h.documentService.FindOrCreateDocument(ctx, ref, user.Email)
 	if err != nil {
+		if errors.Is(err, services.ErrDocumentAlreadyExists) {
+			logger.Logger.Warn("Document already exists (possibly soft-deleted)",
+				"reference", ref,
+				"user_email", user.Email)
+			shared.WriteConflict(w, "A document with this reference already exists. It may have been deleted. Please use a different reference.")
+			return
+		}
 		logger.Logger.Error("Failed to create document",
 			"reference", ref,
 			"error", err.Error())
@@ -589,6 +666,18 @@ func (h *Handler) HandleFindOrCreateDocument(w http.ResponseWriter, r *http.Requ
 		"doc_id", doc.DocID,
 		"reference", ref,
 		"user_email", user.Email)
+
+	// Record quota usage if a new document was created
+	if isNew && h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordDocumentCreation(ctx, tenantID); err != nil {
+				logger.Logger.Error("Failed to record document creation quota",
+					"tenant_id", tenantID,
+					"error", err.Error())
+			}
+		}
+	}
 
 	// Build response (new document has 0 signatures)
 	response := FindOrCreateDocumentResponse{
@@ -1019,6 +1108,18 @@ func (h *Handler) HandleDeleteMyDocument(w http.ResponseWriter, r *http.Request)
 	if err := h.adminService.DeleteDocument(ctx, doc.DocID); err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to delete document", nil)
 		return
+	}
+
+	// Decrement document quota counter
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordDocumentDeletion(ctx, tenantID); err != nil {
+				logger.Logger.Error("Failed to record document deletion quota",
+					"tenant_id", tenantID,
+					"error", err.Error())
+			}
+		}
 	}
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{

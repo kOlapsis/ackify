@@ -445,6 +445,23 @@ func (b *ServerBuilder) initializeSessionWorker(ctx context.Context, repos *repo
 	return sessionWorker, nil
 }
 
+// apiQuotaAdapter adapts web.QuotaEnforcer to api.QuotaEnforcer.
+type apiQuotaAdapter struct {
+	enforcer QuotaEnforcer
+}
+
+func (a *apiQuotaAdapter) CheckDocumentQuota(ctx context.Context, tenantID string) error {
+	return a.enforcer.Check(ctx, tenantID, QuotaActionCreateDocument)
+}
+
+func (a *apiQuotaAdapter) RecordDocumentCreation(ctx context.Context, tenantID string) error {
+	return a.enforcer.Record(ctx, tenantID, QuotaActionCreateDocument)
+}
+
+func (a *apiQuotaAdapter) RecordDocumentDeletion(ctx context.Context, tenantID string) error {
+	return a.enforcer.Record(ctx, tenantID, QuotaActionDeleteDocument)
+}
+
 func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.WebhookPublisher) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(i18n.Middleware(b.i18nService))
@@ -459,6 +476,7 @@ func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.W
 		// Capability providers (TenantProvider handles OIDC + MagicLink dynamically)
 		AuthProvider:     b.authProvider,
 		Authorizer:       b.authorizer,
+		QuotaEnforcer:    &apiQuotaAdapter{enforcer: b.quotaEnforcer},
 		SignatureService: b.signatureService,
 		DocumentService:  b.documentService,
 		AdminService:     b.adminService,

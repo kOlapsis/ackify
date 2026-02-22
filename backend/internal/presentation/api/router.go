@@ -110,6 +110,13 @@ type configService interface {
 }
 
 // RouterConfig holds configuration for the API router
+// QuotaEnforcer checks and records quota usage for documents.
+type QuotaEnforcer interface {
+	CheckDocumentQuota(ctx context.Context, tenantID string) error
+	RecordDocumentCreation(ctx context.Context, tenantID string) error
+	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+}
+
 type RouterConfig struct {
 	// Database for RLS middleware
 	DB             *sql.DB                  // Required for RLS transaction management
@@ -117,8 +124,9 @@ type RouterConfig struct {
 
 	// Capability providers
 	// AuthProvider handles all auth methods (sessions, OIDC, MagicLink) dynamically
-	AuthProvider providers.AuthProvider // Required - unified auth provider
-	Authorizer   providers.Authorizer   // Required for authorization decisions
+	AuthProvider  providers.AuthProvider // Required - unified auth provider
+	Authorizer    providers.Authorizer   // Required for authorization decisions
+	QuotaEnforcer QuotaEnforcer          // Optional - quota enforcement (SaaS)
 
 	// Services
 	SignatureService signatureService
@@ -139,6 +147,23 @@ type RouterConfig struct {
 	DocumentRateLimit int // Document creation rate limit (requests per minute), default: 10
 	GeneralRateLimit  int // General API rate limit (requests per minute), default: 100
 	ImportMaxSigners  int // Maximum signers per CSV import, default: 500
+}
+
+// quotaRecorderAdapter adapts QuotaEnforcer to documents.QuotaRecorder.
+type quotaRecorderAdapter struct {
+	enforcer QuotaEnforcer
+}
+
+func (a *quotaRecorderAdapter) CheckDocumentCreation(ctx context.Context, tenantID string) error {
+	return a.enforcer.CheckDocumentQuota(ctx, tenantID)
+}
+
+func (a *quotaRecorderAdapter) RecordDocumentCreation(ctx context.Context, tenantID string) error {
+	return a.enforcer.RecordDocumentCreation(ctx, tenantID)
+}
+
+func (a *quotaRecorderAdapter) RecordDocumentDeletion(ctx context.Context, tenantID string) error {
+	return a.enforcer.RecordDocumentDeletion(ctx, tenantID)
 }
 
 // NewRouter creates and configures the API v1 router
@@ -194,6 +219,13 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		cfg.WebhookPublisher,
 		cfg.Authorizer,
 	).WithAdminService(cfg.AdminService, cfg.BaseURL)
+
+	if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
+		documentsHandler.WithQuotaRecorder(
+			&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
+			cfg.TenantProvider,
+		)
+	}
 	signaturesHandler := signatures.NewHandler(cfg.SignatureService, cfg.AdminService, cfg.WebhookPublisher)
 	proxyHandler := proxy.NewHandler(cfg.DocumentService)
 
@@ -324,6 +356,12 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 		// Initialize admin handler
 		adminHandler := apiAdmin.NewHandler(cfg.AdminService, cfg.ReminderService, cfg.SignatureService, cfg.BaseURL, importMaxSigners)
+		if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
+			adminHandler.WithQuotaRecorder(
+				&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
+				cfg.TenantProvider,
+			)
+		}
 		webhooksHandler := apiAdmin.NewWebhooksHandler(cfg.WebhookService)
 
 		r.Route("/admin", func(r chi.Router) {

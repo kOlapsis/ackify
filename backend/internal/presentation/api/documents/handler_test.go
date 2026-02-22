@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -177,6 +178,41 @@ func (m *mockSignatureService) GetDocumentSignatures(ctx context.Context, docID 
 		return m.getDocumentSignaturesFunc(ctx, docID)
 	}
 	return []*models.Signature{testSignature}, nil
+}
+
+// mockQuotaRecorder tracks calls to quota methods for test assertions.
+type mockQuotaRecorder struct {
+	checkCalled  bool
+	recordCalled bool
+	deleteCalled bool
+	checkErr     error
+	recordErr    error
+	deleteErr    error
+}
+
+func (m *mockQuotaRecorder) CheckDocumentCreation(_ context.Context, _ string) error {
+	m.checkCalled = true
+	return m.checkErr
+}
+
+func (m *mockQuotaRecorder) RecordDocumentCreation(_ context.Context, _ string) error {
+	m.recordCalled = true
+	return m.recordErr
+}
+
+func (m *mockQuotaRecorder) RecordDocumentDeletion(_ context.Context, _ string) error {
+	m.deleteCalled = true
+	return m.deleteErr
+}
+
+// mockTenantProvider returns a fixed tenant ID.
+type mockTenantProvider struct {
+	tenantID uuid.UUID
+	err      error
+}
+
+func (m *mockTenantProvider) CurrentTenant(_ context.Context) (uuid.UUID, error) {
+	return m.tenantID, m.err
 }
 
 func createTestHandler() *Handler {
@@ -956,6 +992,143 @@ func BenchmarkHandler_HandleCreateDocument_Parallel(b *testing.B) {
 			handler.HandleCreateDocument(rec, req)
 		}
 	})
+}
+
+// ============================================================================
+// TESTS - Quota Integration
+// ============================================================================
+
+func TestHandler_HandleCreateDocument_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		documentService: &mockDocumentService{},
+		authorizer:      newMockAuthorizer([]string{}, false),
+		quotaRecorder:   recorder,
+		tenantProvider:  tp,
+	}
+
+	body, _ := json.Marshal(CreateDocumentRequest{Reference: "https://example.com/doc.pdf"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateDocument(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called before creation")
+	assert.True(t, recorder.recordCalled, "quota record should be called after creation")
+}
+
+func TestHandler_HandleCreateDocument_QuotaExceeded(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{checkErr: fmt.Errorf("documents_per_month limit reached")}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		documentService: &mockDocumentService{},
+		authorizer:      newMockAuthorizer([]string{}, false),
+		quotaRecorder:   recorder,
+		tenantProvider:  tp,
+	}
+
+	body, _ := json.Marshal(CreateDocumentRequest{Reference: "https://example.com/doc.pdf"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateDocument(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called")
+	assert.False(t, recorder.recordCalled, "quota record should NOT be called when check fails")
+}
+
+func TestHandler_HandleCreateDocument_NoQuotaRecorder(t *testing.T) {
+	t.Parallel()
+
+	// Without quotaRecorder, creation should work normally (CE mode)
+	handler := &Handler{
+		documentService: &mockDocumentService{},
+		authorizer:      newMockAuthorizer([]string{}, false),
+	}
+
+	body, _ := json.Marshal(CreateDocumentRequest{Reference: "https://example.com/doc.pdf"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/documents", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateDocument(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+}
+
+func TestHandler_HandleFindOrCreateDocument_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{},
+		documentService: &mockDocumentService{
+			findByReferenceFunc: func(_ context.Context, _ string, _ string) (*models.Document, error) {
+				return nil, nil // not found → triggers creation
+			},
+			findOrCreateDocFunc: func(_ context.Context, _ string, _ string) (*models.Document, bool, error) {
+				return testDoc, true, nil
+			},
+		},
+		authorizer:     newMockAuthorizer([]string{}, false),
+		quotaRecorder:  recorder,
+		tenantProvider: tp,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/find-or-create?doc=https://example.com/doc.pdf", nil)
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleFindOrCreateDocument(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called before creation")
+	assert.True(t, recorder.recordCalled, "quota record should be called for new document")
+}
+
+func TestHandler_HandleFindOrCreateDocument_ExistingDoc_NoQuotaRecord(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{},
+		documentService: &mockDocumentService{
+			findByReferenceFunc: func(_ context.Context, _ string, _ string) (*models.Document, error) {
+				return testDoc, nil // found → no creation
+			},
+		},
+		authorizer:     newMockAuthorizer([]string{}, false),
+		quotaRecorder:  recorder,
+		tenantProvider: tp,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/documents/find-or-create?doc=https://example.com/doc.pdf", nil)
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleFindOrCreateDocument(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.False(t, recorder.checkCalled, "quota check should NOT be called for existing doc")
+	assert.False(t, recorder.recordCalled, "quota record should NOT be called for existing doc")
 }
 
 func Benchmark_detectReferenceType(b *testing.B) {

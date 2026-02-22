@@ -68,6 +68,11 @@ func EmbedFolder(fsEmbed embed.FS, targetPath string, baseURL string, version st
 			return
 		}
 
+		// Hashed assets (Vite build) get long-lived immutable cache
+		if strings.HasPrefix(cleanPath, "assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
 		fileServer := http.FileServer(http.FS(fsys))
 		fileServer.ServeHTTP(w, r)
 	}
@@ -88,6 +93,7 @@ func serveIndexTemplate(w http.ResponseWriter, r *http.Request, file fs.File, ba
 	processedContent = strings.ReplaceAll(processedContent, "__META_TAGS__", metaTags)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
 	if _, err := io.Copy(w, bytes.NewBufferString(processedContent)); err != nil {

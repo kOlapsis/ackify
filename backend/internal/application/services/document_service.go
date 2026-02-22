@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -15,6 +16,9 @@ import (
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 )
+
+// ErrDocumentAlreadyExists is returned when trying to create a document with a doc_id that already exists (e.g. soft-deleted)
+var ErrDocumentAlreadyExists = errors.New("document already exists")
 
 type documentRepository interface {
 	Create(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error)
@@ -103,7 +107,6 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 			title = req.Title
 		}
 	} else {
-		url = req.Reference
 		if req.Title == "" {
 			title = req.Reference
 		} else {
@@ -153,6 +156,11 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 
 	doc, err := s.repo.Create(ctx, docID, input, createdBy)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
+			logger.Logger.Warn("Document already exists (possibly soft-deleted)",
+				"doc_id", docID)
+			return nil, ErrDocumentAlreadyExists
+		}
 		logger.Logger.Error("Failed to create document",
 			"doc_id", docID,
 			"error", err.Error())
@@ -457,11 +465,16 @@ func (s *DocumentService) FindOrCreateDocument(ctx context.Context, ref string, 
 	if refType == ReferenceTypeReference {
 		input := models.DocumentInput{
 			Title: title,
-			URL:   ref,
 		}
 
 		doc, err := s.repo.Create(ctx, ref, input, createdBy)
 		if err != nil {
+			// Detect PostgreSQL duplicate key (e.g. soft-deleted document with same doc_id)
+			if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
+				logger.Logger.Warn("Document already exists (possibly soft-deleted)",
+					"doc_id", ref)
+				return nil, false, ErrDocumentAlreadyExists
+			}
 			logger.Logger.Error("Failed to create document with custom doc_id",
 				"doc_id", ref,
 				"error", err.Error())

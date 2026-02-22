@@ -15,8 +15,14 @@ import (
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 	"github.com/go-chi/chi/v5"
 )
+
+// QuotaRecorder tracks document quota usage for deletion.
+type QuotaRecorder interface {
+	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+}
 
 // adminService defines admin-level operations on documents and signers
 type adminService interface {
@@ -50,6 +56,8 @@ type Handler struct {
 	adminService     adminService
 	reminderService  reminderService
 	signatureService signatureService
+	quotaRecorder    QuotaRecorder
+	tenantProvider   providers.TenantProvider
 	baseURL          string
 	importMaxSigners int
 }
@@ -63,6 +71,24 @@ func NewHandler(adminService adminService, reminderService reminderService, sign
 		baseURL:          baseURL,
 		importMaxSigners: importMaxSigners,
 	}
+}
+
+// WithQuotaRecorder sets the quota recorder for document deletion tracking.
+func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
+	h.quotaRecorder = recorder
+	h.tenantProvider = tp
+	return h
+}
+
+func (h *Handler) getTenantID(ctx context.Context) string {
+	if h.tenantProvider == nil {
+		return ""
+	}
+	tid, err := h.tenantProvider.CurrentTenant(ctx)
+	if err != nil {
+		return ""
+	}
+	return tid.String()
 }
 
 // DocumentResponse represents a document in API responses
@@ -719,6 +745,18 @@ func (h *Handler) HandleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to delete document", nil)
 		return
+	}
+
+	// Decrement document quota counter
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordDocumentDeletion(ctx, tenantID); err != nil {
+				logger.Logger.Error("Failed to record document deletion quota",
+					"tenant_id", tenantID,
+					"error", err.Error())
+			}
+		}
 	}
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{

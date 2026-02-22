@@ -15,6 +15,7 @@ import (
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1338,6 +1339,110 @@ func BenchmarkToDocumentResponse(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = toDocumentResponse(doc)
 	}
+}
+
+// ============================================================================
+// MOCKS - Quota
+// ============================================================================
+
+type mockQuotaRecorder struct {
+	deleteCalled bool
+	deleteErr    error
+}
+
+func (m *mockQuotaRecorder) RecordDocumentDeletion(_ context.Context, _ string) error {
+	m.deleteCalled = true
+	return m.deleteErr
+}
+
+type mockTenantProvider struct {
+	tenantID uuid.UUID
+}
+
+func (m *mockTenantProvider) CurrentTenant(_ context.Context) (uuid.UUID, error) {
+	return m.tenantID, nil
+}
+
+// ============================================================================
+// TESTS - HandleDeleteDocument with Quota
+// ============================================================================
+
+func TestHandleDeleteDocument_QuotaDecrementCalled(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		deleteDocumentFunc: func(_ context.Context, docID string) error {
+			assert.Equal(t, "doc1", docID)
+			return nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	router := chi.NewRouter()
+	router.Delete("/api/v1/admin/documents/{docId}", handler.HandleDeleteDocument)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/documents/doc1", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, recorder.deleteCalled, "quota deletion should be recorded after successful delete")
+}
+
+func TestHandleDeleteDocument_QuotaNotCalledOnError(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		deleteDocumentFunc: func(_ context.Context, _ string) error {
+			return errors.New("database error")
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	router := chi.NewRouter()
+	router.Delete("/api/v1/admin/documents/{docId}", handler.HandleDeleteDocument)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/documents/doc1", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.False(t, recorder.deleteCalled, "quota deletion should NOT be recorded when delete fails")
+}
+
+func TestHandleDeleteDocument_NoQuotaRecorder(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		deleteDocumentFunc: func(_ context.Context, _ string) error {
+			return nil
+		},
+	}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	// No quotaRecorder set → CE mode
+
+	router := chi.NewRouter()
+	router.Delete("/api/v1/admin/documents/{docId}", handler.HandleDeleteDocument)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/documents/doc1", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func BenchmarkToExpectedSignerResponse(b *testing.B) {

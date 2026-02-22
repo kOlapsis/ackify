@@ -22,6 +22,7 @@ type QuotaAction string
 
 const (
 	QuotaActionCreateDocument    QuotaAction = "document.create"
+	QuotaActionDeleteDocument    QuotaAction = "document.delete"
 	QuotaActionCreateSignature   QuotaAction = "signature.create"
 	QuotaActionSendReminder      QuotaAction = "reminder.send"
 	QuotaActionCreateWebhook     QuotaAction = "webhook.create"
