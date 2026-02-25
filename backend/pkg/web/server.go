@@ -72,6 +72,9 @@ type ServerBuilder struct {
 	quotaEnforcer QuotaEnforcer
 	auditLogger   AuditLogger
 
+	// Optional overrides
+	baseURLProvider services.BaseURLProvider
+
 	// Internal infrastructure (created by Build)
 	signer          *crypto.Ed25519Signer
 	i18nService     *i18n.I18n
@@ -131,6 +134,11 @@ func (b *ServerBuilder) WithQuotaEnforcer(enforcer QuotaEnforcer) *ServerBuilder
 // WithAuditLogger injects an audit logger (optional, defaults to LogOnly).
 func (b *ServerBuilder) WithAuditLogger(logger AuditLogger) *ServerBuilder {
 	b.auditLogger = logger
+	return b
+}
+
+func (b *ServerBuilder) WithBaseURLProvider(p services.BaseURLProvider) *ServerBuilder {
+	b.baseURLProvider = p
 	return b
 }
 
@@ -424,13 +432,17 @@ func (b *ServerBuilder) initializeMagicLinkCleanupWorker(ctx context.Context) *w
 }
 
 func (b *ServerBuilder) initializeReminderService(repos *repositories) {
+	baseURLProvider := b.baseURLProvider
+	if baseURLProvider == nil {
+		baseURLProvider = services.StaticBaseURL(b.cfg.App.BaseURL)
+	}
 	b.reminderService = services.NewReminderAsyncService(
 		repos.expectedSigner,
 		repos.reminder,
 		repos.emailQueue,
 		b.magicLinkService,
 		b.i18nService,
-		services.StaticBaseURL(b.cfg.App.BaseURL),
+		baseURLProvider,
 	)
 }
 
