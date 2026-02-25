@@ -168,6 +168,10 @@ func (m *mockDocumentService) CountByCreatedBy(_ context.Context, _, _ string) (
 	return 1, nil
 }
 
+func (m *mockDocumentService) FindPendingDocumentsForEmail(_ context.Context, _ string) ([]*models.PendingDocument, error) {
+	return nil, nil
+}
+
 // Mock signature service
 type mockSignatureService struct {
 	getDocumentSignaturesFunc func(ctx context.Context, docID string) ([]*models.Signature, error)
@@ -182,12 +186,16 @@ func (m *mockSignatureService) GetDocumentSignatures(ctx context.Context, docID 
 
 // mockQuotaRecorder tracks calls to quota methods for test assertions.
 type mockQuotaRecorder struct {
-	checkCalled  bool
-	recordCalled bool
-	deleteCalled bool
-	checkErr     error
-	recordErr    error
-	deleteErr    error
+	checkCalled       bool
+	recordCalled      bool
+	deleteCalled      bool
+	checkErr          error
+	recordErr         error
+	deleteErr         error
+	checkSignerErr    error
+	recordSignerErr   error
+	signerCheckCalled bool
+	signerRecorded    int
 }
 
 func (m *mockQuotaRecorder) CheckDocumentCreation(_ context.Context, _ string) error {
@@ -203,6 +211,16 @@ func (m *mockQuotaRecorder) RecordDocumentCreation(_ context.Context, _ string) 
 func (m *mockQuotaRecorder) RecordDocumentDeletion(_ context.Context, _ string) error {
 	m.deleteCalled = true
 	return m.deleteErr
+}
+
+func (m *mockQuotaRecorder) CheckSignerAdd(_ context.Context, _ string) error {
+	m.signerCheckCalled = true
+	return m.checkSignerErr
+}
+
+func (m *mockQuotaRecorder) RecordSignerAdd(_ context.Context, _ string) error {
+	m.signerRecorded++
+	return m.recordSignerErr
 }
 
 // mockTenantProvider returns a fixed tenant ID.

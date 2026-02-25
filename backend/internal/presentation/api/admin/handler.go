@@ -19,9 +19,13 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// QuotaRecorder tracks document quota usage for deletion.
+// QuotaRecorder tracks quota usage for documents, reminders and signers.
 type QuotaRecorder interface {
 	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+	CheckReminderSend(ctx context.Context, tenantID string) error
+	RecordReminderSend(ctx context.Context, tenantID string) error
+	CheckSignerAdd(ctx context.Context, tenantID string) error
+	RecordSignerAdd(ctx context.Context, tenantID string) error
 }
 
 // adminService defines admin-level operations on documents and signers
@@ -307,12 +311,33 @@ func (h *Handler) HandleAddExpectedSigner(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Check signer quota
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckSignerAdd(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+				return
+			}
+		}
+	}
+
 	// Add expected signer
 	contacts := []models.ContactInfo{{Email: req.Email, Name: req.Name}}
 	err := h.adminService.AddExpectedSigners(ctx, docID, contacts, user.Email)
 	if err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to add expected signer", nil)
 		return
+	}
+
+	// Record signer quota usage
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordSignerAdd(ctx, tenantID); err != nil {
+				logger.Logger.Warn("Failed to record signer add quota", "tenant_id", tenantID, "error", err.Error())
+			}
+		}
 	}
 
 	shared.WriteJSON(w, http.StatusCreated, map[string]interface{}{
@@ -450,6 +475,17 @@ func (h *Handler) HandleSendReminders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check reminder quota before sending
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckReminderSend(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+				return
+			}
+		}
+	}
+
 	// Get document URL from metadata
 	var docURL string
 	if doc, err := h.adminService.GetDocument(ctx, docID); err == nil && doc != nil && doc.URL != "" {
@@ -464,6 +500,21 @@ func (h *Handler) HandleSendReminders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to send reminders", nil)
 		return
+	}
+
+	// Record reminder usage (one record per reminder sent)
+	if h.quotaRecorder != nil && result.TotalAttempted > 0 {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			for i := 0; i < result.TotalAttempted; i++ {
+				if err := h.quotaRecorder.RecordReminderSend(ctx, tenantID); err != nil {
+					logger.Logger.Warn("Failed to record reminder quota usage",
+						"tenant_id", tenantID,
+						"error", err.Error())
+					break
+				}
+			}
+		}
 	}
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
@@ -930,6 +981,21 @@ func (h *Handler) HandleImportSigners(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	importedCount := len(req.Signers) - skippedCount
+
+	// Check signer quota for new signers only
+	if h.quotaRecorder != nil && importedCount > 0 {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			for range importedCount {
+				if err := h.quotaRecorder.CheckSignerAdd(ctx, tenantID); err != nil {
+					shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+					return
+				}
+			}
+		}
+	}
+
 	// Add all signers (repository handles duplicates with ON CONFLICT DO NOTHING)
 	if err := h.adminService.AddExpectedSigners(ctx, docID, contacts, user.Email); err != nil {
 		logger.Logger.Error("Failed to import signers", "error", err.Error(), "doc_id", docID, "count", len(contacts))
@@ -937,7 +1003,17 @@ func (h *Handler) HandleImportSigners(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	importedCount := len(req.Signers) - skippedCount
+	// Record signer quota for each imported signer
+	if h.quotaRecorder != nil && importedCount > 0 {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			for range importedCount {
+				if err := h.quotaRecorder.RecordSignerAdd(ctx, tenantID); err != nil {
+					logger.Logger.Warn("Failed to record signer add quota", "tenant_id", tenantID, "error", err.Error())
+				}
+			}
+		}
+	}
 
 	logger.Logger.Info("Signers imported successfully",
 		"doc_id", docID,

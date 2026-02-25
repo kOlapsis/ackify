@@ -8,6 +8,7 @@ import http, { type ApiResponse } from './http'
 export interface GeneralConfig {
   organisation: string
   only_admin_can_create: boolean
+  allowed_domains: string[]
 }
 
 export interface OIDCConfig {

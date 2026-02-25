@@ -5,13 +5,16 @@ import signatureService, {
   type Signature,
   type SignatureStatus,
   type CreateSignatureRequest,
+  type PendingDocument,
 } from '@/services/signatures'
 
 export const useSignatureStore = defineStore('signatures', () => {
   const userSignatures = ref<Signature[]>([])
+  const pendingDocuments = ref<PendingDocument[]>([])
   const documentSignatures = ref<Map<string, Signature[]>>(new Map())
   const signatureStatuses = ref<Map<string, SignatureStatus>>(new Map())
   const loading = ref(false)
+  const loadingPending = ref(false)
   const error = ref<string | null>(null)
 
   const getUserSignaturesCount = computed(() => userSignatures.value.length)
@@ -78,6 +81,17 @@ export const useSignatureStore = defineStore('signatures', () => {
     }
   }
 
+  async function fetchPendingDocuments(): Promise<void> {
+    loadingPending.value = true
+    try {
+      pendingDocuments.value = await signatureService.getMyPendingDocuments()
+    } catch (err: any) {
+      error.value = err.response?.data?.error?.message || 'Failed to fetch pending documents'
+    } finally {
+      loadingPending.value = false
+    }
+  }
+
   async function fetchDocumentSignatures(docId: string): Promise<Signature[]> {
     loading.value = true
     error.value = null
@@ -125,6 +139,7 @@ export const useSignatureStore = defineStore('signatures', () => {
 
   function clearCache(): void {
     userSignatures.value = []
+    pendingDocuments.value = []
     documentSignatures.value.clear()
     signatureStatuses.value.clear()
     error.value = null
@@ -132,9 +147,11 @@ export const useSignatureStore = defineStore('signatures', () => {
 
   return {
     userSignatures,
+    pendingDocuments,
     documentSignatures,
     signatureStatuses,
     loading,
+    loadingPending,
     error,
     getUserSignaturesCount,
     getDocumentSignatures,
@@ -142,6 +159,7 @@ export const useSignatureStore = defineStore('signatures', () => {
     isDocumentSigned,
     createSignature,
     fetchUserSignatures,
+    fetchPendingDocuments,
     fetchDocumentSignatures,
     fetchSignatureStatus,
     checkUserSigned,

@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
+	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -32,16 +34,42 @@ type webhookPublisher interface {
 	Publish(ctx context.Context, eventType string, payload map[string]interface{}) error
 }
 
+// QuotaRecorder tracks signature quota usage.
+type QuotaRecorder interface {
+	CheckSignatureCreation(ctx context.Context, tenantID string) error
+	RecordSignatureCreation(ctx context.Context, tenantID string) error
+}
+
 // Handler handles signature-related requests
 type Handler struct {
 	signatureService signatureService
 	adminService     adminService
 	webhookPublisher webhookPublisher
+	quotaRecorder    QuotaRecorder
+	tenantProvider   providers.TenantProvider
 }
 
 // NewHandler constructor to inject admin service and webhook publisher
 func NewHandler(signatureService signatureService, adminSvc adminService, publisher webhookPublisher) *Handler {
 	return &Handler{signatureService: signatureService, adminService: adminSvc, webhookPublisher: publisher}
+}
+
+// WithQuotaRecorder sets the quota recorder for signature tracking.
+func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
+	h.quotaRecorder = recorder
+	h.tenantProvider = tp
+	return h
+}
+
+func (h *Handler) getTenantID(ctx context.Context) string {
+	if h.tenantProvider == nil {
+		return ""
+	}
+	tid, err := h.tenantProvider.CurrentTenant(ctx)
+	if err != nil {
+		return ""
+	}
+	return tid.String()
 }
 
 // CreateSignatureRequest represents the request body for creating a signature
@@ -108,6 +136,17 @@ func (h *Handler) HandleCreateSignature(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Check signature quota
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckSignatureCreation(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+				return
+			}
+		}
+	}
+
 	sigRequest := &models.SignatureRequest{
 		DocID:   req.DocID,
 		User:    user,
@@ -135,6 +174,16 @@ func (h *Handler) HandleCreateSignature(w http.ResponseWriter, r *http.Request) 
 
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to create signature", map[string]interface{}{"error": err.Error()})
 		return
+	}
+
+	// Record signature quota usage
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordSignatureCreation(ctx, tenantID); err != nil {
+				logger.Logger.Warn("Failed to record signature creation quota", "tenant_id", tenantID, "error", err.Error())
+			}
+		}
 	}
 
 	// Publish signature.created webhook

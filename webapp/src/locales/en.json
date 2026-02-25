@@ -287,7 +287,15 @@
       "uniqueDocuments": "Unique documents",
       "last": "Last",
       "lastConfirmation": "Last confirmation",
-      "notAvailable": "N/A"
+      "notAvailable": "N/A",
+      "pending": "Pending",
+      "pendingDocuments": "Pending confirmations"
+    },
+    "pending": {
+      "title": "Awaiting your confirmation",
+      "subtitle": "These documents have been assigned to you and are waiting for your reading confirmation",
+      "addedOn": "Added on {date}",
+      "awaitingConfirmation": "Pending"
     },
     "allConfirmations": "All my confirmations",
     "about": {
@@ -379,7 +387,10 @@
         "organisationPlaceholder": "My Company",
         "organisationHelper": "Displayed in emails and interface",
         "onlyAdminCanCreate": "Only admins can create documents",
-        "onlyAdminCanCreateHelper": "When enabled, only administrators can create new documents"
+        "onlyAdminCanCreateHelper": "When enabled, only administrators can create new documents",
+        "allowedDomains": "Allowed domains for document URLs",
+        "allowedDomainsPlaceholder": "*.company.com\ndocs.example.com",
+        "allowedDomainsHelper": "One domain per line. Supports wildcards (*.company.com). HTTPS is always required. Leave empty to allow all HTTPS URLs."
       },
       "oidc": {
         "title": "OAuth / OIDC Configuration",

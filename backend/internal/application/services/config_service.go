@@ -366,6 +366,7 @@ func (s *ConfigService) seedFromENV(ctx context.Context) error {
 	general := models.GeneralConfig{
 		Organisation:       s.envConfig.App.Organisation,
 		OnlyAdminCanCreate: s.envConfig.App.OnlyAdminCanCreate,
+		AllowedDomains:     s.envConfig.App.AllowedDomains,
 	}
 	if err := s.upsertSection(ctx, models.ConfigCategoryGeneral, general, nil, "system"); err != nil {
 		return fmt.Errorf("failed to seed general config: %w", err)

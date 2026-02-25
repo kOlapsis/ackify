@@ -373,6 +373,9 @@ func (b *ServerBuilder) initializeCoreServices(repos *repositories) {
 	b.signatureService = services.NewSignatureService(repos.signature, repos.document, b.signer)
 	b.signatureService.SetChecksumConfig(&b.cfg.Checksum)
 	b.documentService = services.NewDocumentService(repos.document, repos.expectedSigner, &b.cfg.Checksum)
+	if b.configService != nil {
+		b.documentService.WithConfigProvider(b.configService)
+	}
 	b.adminService = services.NewAdminService(repos.document, repos.expectedSigner)
 	b.webhookService = services.NewWebhookService(repos.webhook, repos.webhookDelivery)
 }
@@ -445,21 +448,17 @@ func (b *ServerBuilder) initializeSessionWorker(ctx context.Context, repos *repo
 	return sessionWorker, nil
 }
 
-// apiQuotaAdapter adapts web.QuotaEnforcer to api.QuotaEnforcer.
+// apiQuotaAdapter adapts web.QuotaEnforcer to api.QuotaEnforcer (generic Check/Record with string action).
 type apiQuotaAdapter struct {
 	enforcer QuotaEnforcer
 }
 
-func (a *apiQuotaAdapter) CheckDocumentQuota(ctx context.Context, tenantID string) error {
-	return a.enforcer.Check(ctx, tenantID, QuotaActionCreateDocument)
+func (a *apiQuotaAdapter) Check(ctx context.Context, tenantID string, action string) error {
+	return a.enforcer.Check(ctx, tenantID, QuotaAction(action))
 }
 
-func (a *apiQuotaAdapter) RecordDocumentCreation(ctx context.Context, tenantID string) error {
-	return a.enforcer.Record(ctx, tenantID, QuotaActionCreateDocument)
-}
-
-func (a *apiQuotaAdapter) RecordDocumentDeletion(ctx context.Context, tenantID string) error {
-	return a.enforcer.Record(ctx, tenantID, QuotaActionDeleteDocument)
+func (a *apiQuotaAdapter) Record(ctx context.Context, tenantID string, action string) error {
+	return a.enforcer.Record(ctx, tenantID, QuotaAction(action))
 }
 
 func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.WebhookPublisher) *chi.Mux {

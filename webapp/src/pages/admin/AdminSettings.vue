@@ -47,7 +47,8 @@ const activeSection = ref<ConfigSection>('general')
 const showResetConfirm = ref(false)
 
 // Edit states for each section
-const editGeneral = ref<GeneralConfig>({ organisation: '', only_admin_can_create: false })
+const editGeneral = ref<GeneralConfig>({ organisation: '', only_admin_can_create: false, allowed_domains: [] })
+const allowedDomainsText = ref('')
 const editOIDC = ref<OIDCConfig>({
   enabled: false, provider: '', client_id: '', client_secret: '',
   auth_url: '', token_url: '', userinfo_url: '', logout_url: '',
@@ -82,7 +83,8 @@ async function loadSettings() {
     const response = await getSettings()
     settings.value = response.data
     // Initialize edit states
-    editGeneral.value = { ...response.data.general }
+    editGeneral.value = { ...response.data.general, allowed_domains: response.data.general.allowed_domains || [] }
+    allowedDomainsText.value = (response.data.general.allowed_domains || []).join('\n')
     editOIDC.value = { ...response.data.oidc }
     editMagicLink.value = { enabled: response.data.magiclink.enabled }
     editSMTP.value = { ...response.data.smtp }
@@ -103,7 +105,13 @@ async function saveSection(section: ConfigSection) {
 
     let config: any
     switch (section) {
-      case 'general': config = editGeneral.value; break
+      case 'general':
+        editGeneral.value.allowed_domains = allowedDomainsText.value
+          .split('\n')
+          .map(d => d.trim())
+          .filter(d => d !== '')
+        config = editGeneral.value
+        break
       case 'oidc': config = editOIDC.value; break
       case 'magiclink': config = editMagicLink.value; break
       case 'smtp': config = editSMTP.value; break
@@ -292,6 +300,22 @@ onMounted(loadSettings)
               <label for="only_admin_can_create" class="text-sm text-slate-700 dark:text-slate-300">
                 {{ t('admin.settings.general.onlyAdminCanCreate') }}
               </label>
+            </div>
+            <div>
+              <label for="allowed_domains" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {{ t('admin.settings.general.allowedDomains') }}
+              </label>
+              <textarea
+                id="allowed_domains"
+                data-testid="allowed_domains"
+                v-model="allowedDomainsText"
+                rows="4"
+                :placeholder="t('admin.settings.general.allowedDomainsPlaceholder')"
+                class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+              ></textarea>
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {{ t('admin.settings.general.allowedDomainsHelper') }}
+              </p>
             </div>
           </div>
           <div class="mt-8 flex justify-end">

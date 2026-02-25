@@ -40,6 +40,13 @@ type DocCompletionStats struct {
 	CompletionRate float64 `json:"completion_rate"` // Percentage 0-100
 }
 
+// PendingDocument represents a document awaiting confirmation by a specific user
+type PendingDocument struct {
+	DocID   string    `json:"doc_id"`
+	Title   string    `json:"title"`
+	AddedAt time.Time `json:"added_at"`
+}
+
 // ContactInfo represents a contact with optional name and email
 type ContactInfo struct {
 	Name  string

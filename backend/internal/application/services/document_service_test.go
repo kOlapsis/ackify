@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -354,6 +355,10 @@ func (m *mockDocExpectedSignerRepoTest) GetStats(_ context.Context, _ string) (*
 	return &models.DocCompletionStats{}, nil
 }
 
+func (m *mockDocExpectedSignerRepoTest) FindPendingForEmail(_ context.Context, _ string) ([]*models.PendingDocument, error) {
+	return nil, nil
+}
+
 // mockDocumentRepository is a mock implementation for testing
 type mockDocumentRepository struct {
 	createFunc          func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error)
@@ -478,7 +483,7 @@ func TestDocumentService_CreateDocument_WithURLAndTitle(t *testing.T) {
 	}
 }
 
-// Test CreateDocument with HTTP URL
+// Test CreateDocument with HTTP URL is rejected (HTTPS required)
 func TestDocumentService_CreateDocument_WithHTTPURL(t *testing.T) {
 	mockRepo := &mockDocumentRepository{}
 	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, nil)
@@ -489,20 +494,13 @@ func TestDocumentService_CreateDocument_WithHTTPURL(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	doc, err := service.CreateDocument(ctx, req)
+	_, err := service.CreateDocument(ctx, req)
 
-	if err != nil {
-		t.Fatalf("CreateDocument failed: %v", err)
+	if err == nil {
+		t.Fatal("Expected error for HTTP URL, got nil")
 	}
-
-	// Check that URL was extracted (HTTP should work too)
-	if doc.URL != "http://example.com/doc.html" {
-		t.Errorf("Expected URL to be %q, got %q", "http://example.com/doc.html", doc.URL)
-	}
-
-	// Check that title was extracted
-	if doc.Title != "doc" {
-		t.Errorf("Expected title to be %q, got %q", "doc", doc.Title)
+	if !errors.Is(err, ErrHTTPSRequired) {
+		t.Errorf("Expected ErrHTTPSRequired, got %v", err)
 	}
 }
 

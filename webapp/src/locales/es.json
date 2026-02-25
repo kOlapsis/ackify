@@ -287,7 +287,15 @@
       "uniqueDocuments": "Documentos únicos",
       "last": "Último",
       "lastConfirmation": "Última confirmación",
-      "notAvailable": "N/A"
+      "notAvailable": "N/A",
+      "pending": "Pendiente",
+      "pendingDocuments": "Confirmaciones pendientes"
+    },
+    "pending": {
+      "title": "Esperando su confirmación",
+      "subtitle": "Estos documentos le han sido asignados y están esperando su confirmación de lectura",
+      "addedOn": "Añadido el {date}",
+      "awaitingConfirmation": "Pendiente"
     },
     "allConfirmations": "Todas mis confirmaciones",
     "about": {
@@ -379,7 +387,10 @@
         "organisationPlaceholder": "Mi Empresa",
         "organisationHelper": "Se muestra en emails e interfaz",
         "onlyAdminCanCreate": "Solo los admins pueden crear documentos",
-        "onlyAdminCanCreateHelper": "Cuando está activado, solo los administradores pueden crear nuevos documentos"
+        "onlyAdminCanCreateHelper": "Cuando está activado, solo los administradores pueden crear nuevos documentos",
+        "allowedDomains": "Dominios permitidos para URLs de documentos",
+        "allowedDomainsPlaceholder": "*.empresa.com\ndocs.ejemplo.com",
+        "allowedDomainsHelper": "Un dominio por línea. Soporta comodines (*.empresa.com). HTTPS siempre es requerido. Dejar vacío para permitir todas las URLs HTTPS."
       },
       "oidc": {
         "title": "Configuración OAuth / OIDC",

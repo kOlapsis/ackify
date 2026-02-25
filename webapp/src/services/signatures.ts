@@ -50,6 +50,12 @@ export interface CreateSignatureResponse {
 /**
  * Signature service for managing document signatures
  */
+export interface PendingDocument {
+  docId: string
+  title: string
+  addedAt: string
+}
+
 export const signatureService = {
   /**
    * Create a signature for a document
@@ -88,6 +94,11 @@ export const signatureService = {
   /**
    * Check if user has signed a document
    */
+  async getMyPendingDocuments(): Promise<PendingDocument[]> {
+    const response = await http.get<ApiResponse<PendingDocument[]>>('/users/me/pending-documents')
+    return response.data.data
+  },
+
   async hasUserSigned(docId: string): Promise<boolean> {
     try {
       const status = await this.getSignatureStatus(docId)

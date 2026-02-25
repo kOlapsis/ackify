@@ -242,6 +242,46 @@ func (r *ExpectedSignerRepository) IsExpected(ctx context.Context, docID, email 
 	return exists, nil
 }
 
+// FindPendingForEmail returns documents where the email is an expected signer but hasn't signed yet
+// RLS policy automatically filters by tenant_id via the querier
+func (r *ExpectedSignerRepository) FindPendingForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error) {
+	query := `
+		SELECT d.doc_id, d.title, es.added_at
+		FROM expected_signers es
+		JOIN documents d ON es.doc_id = d.doc_id AND es.tenant_id = d.tenant_id
+		WHERE LOWER(es.email) = LOWER($1)
+		  AND d.deleted_at IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1 FROM signatures s
+		    WHERE s.doc_id = es.doc_id AND s.tenant_id = es.tenant_id
+		    AND LOWER(s.user_email) = LOWER($1)
+		  )
+		ORDER BY es.added_at DESC
+	`
+
+	rows, err := dbctx.GetQuerier(ctx, r.db).QueryContext(ctx, query, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pending documents: %w", err)
+	}
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			logger.Logger.Error("failed to close rows", "error", err)
+		}
+	}(rows)
+
+	var docs []*models.PendingDocument
+	for rows.Next() {
+		doc := &models.PendingDocument{}
+		if err := rows.Scan(&doc.DocID, &doc.Title, &doc.AddedAt); err != nil {
+			continue
+		}
+		docs = append(docs, doc)
+	}
+
+	return docs, nil
+}
+
 // GetStats calculates signature completion metrics including percentage progress for a document
 // RLS policy automatically filters by tenant_id
 func (r *ExpectedSignerRepository) GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error) {

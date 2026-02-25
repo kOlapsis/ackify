@@ -17,8 +17,12 @@ import (
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
 )
 
-// ErrDocumentAlreadyExists is returned when trying to create a document with a doc_id that already exists (e.g. soft-deleted)
-var ErrDocumentAlreadyExists = errors.New("document already exists")
+var (
+	// ErrDocumentAlreadyExists is returned when trying to create a document with a doc_id that already exists (e.g. soft-deleted)
+	ErrDocumentAlreadyExists = errors.New("document already exists")
+	ErrHTTPSRequired         = errors.New("HTTPS is required for document URLs")
+	ErrDomainNotAllowed      = errors.New("domain not in allowed list")
+)
 
 type documentRepository interface {
 	Create(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error)
@@ -35,6 +39,11 @@ type documentRepository interface {
 type docExpectedSignerRepository interface {
 	ListByDocID(ctx context.Context, docID string) ([]*models.ExpectedSigner, error)
 	GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error)
+	FindPendingForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
+}
+
+type docConfigProvider interface {
+	GetConfig() *models.MutableConfig
 }
 
 // DocumentService handles document metadata operations and unique ID generation
@@ -42,6 +51,7 @@ type DocumentService struct {
 	repo               documentRepository
 	expectedSignerRepo docExpectedSignerRepository
 	checksumConfig     *config.ChecksumConfig
+	configProvider     docConfigProvider
 }
 
 // NewDocumentService initializes the document service with its repository dependency
@@ -51,6 +61,12 @@ func NewDocumentService(repo documentRepository, expectedSignerRepo docExpectedS
 		expectedSignerRepo: expectedSignerRepo,
 		checksumConfig:     checksumConfig,
 	}
+}
+
+// WithConfigProvider sets the config provider for hot-reloaded settings (e.g. domain whitelist)
+func (s *DocumentService) WithConfigProvider(cp docConfigProvider) *DocumentService {
+	s.configProvider = cp
+	return s
 }
 
 // CreateDocumentRequest represents the request to create a document
@@ -75,9 +91,72 @@ type CreateDocumentRequest struct {
 	OriginalFilename  string `json:"original_filename,omitempty"`
 }
 
+// ValidateDocumentURL enforces HTTPS and optional domain whitelist on document URLs.
+// HTTPS is always required. Domain whitelist is only enforced when allowedDomains is non-empty.
+func ValidateDocumentURL(urlStr string, allowedDomains []string) error {
+	if !strings.HasPrefix(urlStr, "https://") {
+		return ErrHTTPSRequired
+	}
+
+	if len(allowedDomains) == 0 {
+		return nil
+	}
+
+	// Extract hostname from URL
+	hostname := urlStr[len("https://"):]
+	if idx := strings.IndexAny(hostname, "/:?#"); idx >= 0 {
+		hostname = hostname[:idx]
+	}
+	hostname = strings.ToLower(hostname)
+
+	for _, pattern := range allowedDomains {
+		pattern = strings.ToLower(strings.TrimSpace(pattern))
+		if pattern == "" {
+			continue
+		}
+		if matchDomain(hostname, pattern) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%w: %s", ErrDomainNotAllowed, hostname)
+}
+
+func matchDomain(hostname, pattern string) bool {
+	if strings.HasPrefix(pattern, "*.") {
+		suffix := pattern[1:] // e.g. ".company.com"
+		return hostname == pattern[2:] || strings.HasSuffix(hostname, suffix)
+	}
+	return hostname == pattern
+}
+
+// getActiveAllowedDomains returns the current allowed domains from config provider
+func (s *DocumentService) getActiveAllowedDomains() []string {
+	if s.configProvider == nil {
+		return nil
+	}
+	cfg := s.configProvider.GetConfig()
+	if cfg == nil {
+		return nil
+	}
+	return cfg.General.AllowedDomains
+}
+
+// validateURLIfNeeded validates the URL against HTTPS and domain whitelist rules
+func (s *DocumentService) validateURLIfNeeded(ref string) error {
+	if !strings.HasPrefix(ref, "http://") && !strings.HasPrefix(ref, "https://") {
+		return nil
+	}
+	return ValidateDocumentURL(ref, s.getActiveAllowedDomains())
+}
+
 // CreateDocument generates a collision-resistant base36 identifier and persists document metadata
 func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocumentRequest) (*models.Document, error) {
 	logger.Logger.Info("Document creation attempt", "reference", req.Reference)
+
+	if err := s.validateURLIfNeeded(req.Reference); err != nil {
+		return nil, err
+	}
 
 	var docID string
 	maxRetries := 5
@@ -446,6 +525,10 @@ func (s *DocumentService) FindOrCreateDocument(ctx context.Context, ref string, 
 
 	logger.Logger.Info("Document not found, creating new one", "reference", ref, "created_by", createdBy)
 
+	if err := s.validateURLIfNeeded(ref); err != nil {
+		return nil, false, err
+	}
+
 	var title string
 	switch refType {
 	case ReferenceTypeURL:
@@ -552,6 +635,14 @@ func (s *DocumentService) ListExpectedSigners(ctx context.Context, docID string)
 		return nil, fmt.Errorf("expected signer repository not configured")
 	}
 	return s.expectedSignerRepo.ListByDocID(ctx, docID)
+}
+
+// FindPendingDocumentsForEmail returns documents awaiting confirmation by the given email
+func (s *DocumentService) FindPendingDocumentsForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error) {
+	if s.expectedSignerRepo == nil {
+		return nil, fmt.Errorf("expected signer repository not configured")
+	}
+	return s.expectedSignerRepo.FindPendingForEmail(ctx, email)
 }
 
 // ListByCreatedBy retrieves a paginated list of documents created by a specific user

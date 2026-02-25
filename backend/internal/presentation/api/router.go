@@ -59,6 +59,7 @@ type documentService interface {
 	ListByCreatedBy(ctx context.Context, createdBy string, limit, offset int) ([]*models.Document, error)
 	SearchByCreatedBy(ctx context.Context, createdBy, query string, limit, offset int) ([]*models.Document, error)
 	CountByCreatedBy(ctx context.Context, createdBy, searchQuery string) (int, error)
+	FindPendingDocumentsForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
 }
 
 // reminderService defines reminder operations
@@ -110,11 +111,10 @@ type configService interface {
 }
 
 // RouterConfig holds configuration for the API router
-// QuotaEnforcer checks and records quota usage for documents.
+// QuotaEnforcer checks and records quota usage using generic action-based methods.
 type QuotaEnforcer interface {
-	CheckDocumentQuota(ctx context.Context, tenantID string) error
-	RecordDocumentCreation(ctx context.Context, tenantID string) error
-	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+	Check(ctx context.Context, tenantID string, action string) error
+	Record(ctx context.Context, tenantID string, action string) error
 }
 
 type RouterConfig struct {
@@ -149,21 +149,52 @@ type RouterConfig struct {
 	ImportMaxSigners  int // Maximum signers per CSV import, default: 500
 }
 
-// quotaRecorderAdapter adapts QuotaEnforcer to documents.QuotaRecorder.
+// quotaRecorderAdapter adapts generic QuotaEnforcer to handler-specific QuotaRecorder interfaces.
+// It implements both documents.QuotaRecorder, admin.QuotaRecorder, and signatures.QuotaRecorder.
 type quotaRecorderAdapter struct {
 	enforcer QuotaEnforcer
 }
 
+// documents.QuotaRecorder
+
 func (a *quotaRecorderAdapter) CheckDocumentCreation(ctx context.Context, tenantID string) error {
-	return a.enforcer.CheckDocumentQuota(ctx, tenantID)
+	return a.enforcer.Check(ctx, tenantID, "document.create")
 }
 
 func (a *quotaRecorderAdapter) RecordDocumentCreation(ctx context.Context, tenantID string) error {
-	return a.enforcer.RecordDocumentCreation(ctx, tenantID)
+	return a.enforcer.Record(ctx, tenantID, "document.create")
 }
 
 func (a *quotaRecorderAdapter) RecordDocumentDeletion(ctx context.Context, tenantID string) error {
-	return a.enforcer.RecordDocumentDeletion(ctx, tenantID)
+	return a.enforcer.Record(ctx, tenantID, "document.delete")
+}
+
+func (a *quotaRecorderAdapter) CheckSignerAdd(ctx context.Context, tenantID string) error {
+	return a.enforcer.Check(ctx, tenantID, "signer.add")
+}
+
+func (a *quotaRecorderAdapter) RecordSignerAdd(ctx context.Context, tenantID string) error {
+	return a.enforcer.Record(ctx, tenantID, "signer.add")
+}
+
+// admin.QuotaRecorder
+
+func (a *quotaRecorderAdapter) CheckReminderSend(ctx context.Context, tenantID string) error {
+	return a.enforcer.Check(ctx, tenantID, "reminder.send")
+}
+
+func (a *quotaRecorderAdapter) RecordReminderSend(ctx context.Context, tenantID string) error {
+	return a.enforcer.Record(ctx, tenantID, "reminder.send")
+}
+
+// signatures.QuotaRecorder
+
+func (a *quotaRecorderAdapter) CheckSignatureCreation(ctx context.Context, tenantID string) error {
+	return a.enforcer.Check(ctx, tenantID, "signature.create")
+}
+
+func (a *quotaRecorderAdapter) RecordSignatureCreation(ctx context.Context, tenantID string) error {
+	return a.enforcer.Record(ctx, tenantID, "signature.create")
 }
 
 // NewRouter creates and configures the API v1 router
@@ -227,6 +258,12 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		)
 	}
 	signaturesHandler := signatures.NewHandler(cfg.SignatureService, cfg.AdminService, cfg.WebhookPublisher)
+	if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
+		signaturesHandler.WithQuotaRecorder(
+			&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
+			cfg.TenantProvider,
+		)
+	}
 	proxyHandler := proxy.NewHandler(cfg.DocumentService)
 
 	// Storage handler (optional - only if storage is configured)
@@ -311,6 +348,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/me", usersHandler.HandleGetCurrentUser)
 			r.Get("/me/documents", documentsHandler.HandleListMyDocuments)
+			r.Get("/me/pending-documents", documentsHandler.HandleGetMyPendingDocuments)
 
 			// Owner-based document management (user can manage docs they created)
 			r.Get("/me/documents/{docId}/status", documentsHandler.HandleGetMyDocumentStatus)

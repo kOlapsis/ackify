@@ -19,12 +19,14 @@ import (
 	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 )
 
-// QuotaRecorder tracks document quota usage.
+// QuotaRecorder tracks document and signer quota usage.
 // Satisfied by the adapter in the router package to avoid import cycles with pkg/web.
 type QuotaRecorder interface {
 	CheckDocumentCreation(ctx context.Context, tenantID string) error
 	RecordDocumentCreation(ctx context.Context, tenantID string) error
 	RecordDocumentDeletion(ctx context.Context, tenantID string) error
+	CheckSignerAdd(ctx context.Context, tenantID string) error
+	RecordSignerAdd(ctx context.Context, tenantID string) error
 }
 
 // documentService defines the interface for document operations
@@ -41,6 +43,7 @@ type documentService interface {
 	ListByCreatedBy(ctx context.Context, createdBy string, limit, offset int) ([]*models.Document, error)
 	SearchByCreatedBy(ctx context.Context, createdBy, query string, limit, offset int) ([]*models.Document, error)
 	CountByCreatedBy(ctx context.Context, createdBy, searchQuery string) (int, error)
+	FindPendingDocumentsForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
 }
 
 // webhookPublisher defines minimal publish capability
@@ -223,6 +226,14 @@ func (h *Handler) HandleCreateDocument(w http.ResponseWriter, r *http.Request) {
 			logger.Logger.Warn("Document already exists (possibly soft-deleted)",
 				"reference", req.Reference)
 			shared.WriteConflict(w, "A document with this reference already exists. It may have been deleted. Please use a different reference.")
+			return
+		}
+		if errors.Is(err, services.ErrHTTPSRequired) {
+			shared.WriteValidationError(w, "HTTPS is required for document URLs", nil)
+			return
+		}
+		if errors.Is(err, services.ErrDomainNotAllowed) {
+			shared.WriteValidationError(w, err.Error(), nil)
 			return
 		}
 		logger.Logger.Error("Document creation failed in handler",
@@ -655,6 +666,14 @@ func (h *Handler) HandleFindOrCreateDocument(w http.ResponseWriter, r *http.Requ
 			shared.WriteConflict(w, "A document with this reference already exists. It may have been deleted. Please use a different reference.")
 			return
 		}
+		if errors.Is(err, services.ErrHTTPSRequired) {
+			shared.WriteValidationError(w, "HTTPS is required for document URLs", nil)
+			return
+		}
+		if errors.Is(err, services.ErrDomainNotAllowed) {
+			shared.WriteValidationError(w, err.Error(), nil)
+			return
+		}
 		logger.Logger.Error("Failed to create document",
 			"reference", ref,
 			"error", err.Error())
@@ -803,6 +822,44 @@ func (h *Handler) HandleListMyDocuments(w http.ResponseWriter, r *http.Request) 
 	}
 
 	shared.WritePaginatedJSON(w, documents, pagination.Page, pagination.PageSize, totalCount)
+}
+
+// PendingDocumentDTO represents a document awaiting confirmation by the current user
+type PendingDocumentDTO struct {
+	DocID   string `json:"docId"`
+	Title   string `json:"title"`
+	AddedAt string `json:"addedAt"`
+}
+
+// HandleGetMyPendingDocuments handles GET /api/v1/users/me/pending-documents
+func (h *Handler) HandleGetMyPendingDocuments(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	user, authenticated := shared.GetUserFromContext(ctx)
+	if !authenticated || user == nil {
+		shared.WriteError(w, http.StatusUnauthorized, shared.ErrCodeUnauthorized, "Authentication required", nil)
+		return
+	}
+
+	docs, err := h.documentService.FindPendingDocumentsForEmail(ctx, user.Email)
+	if err != nil {
+		logger.Logger.Error("Failed to fetch pending documents",
+			"user_email", user.Email,
+			"error", err.Error())
+		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to fetch pending documents", nil)
+		return
+	}
+
+	response := make([]PendingDocumentDTO, 0, len(docs))
+	for _, doc := range docs {
+		response = append(response, PendingDocumentDTO{
+			DocID:   doc.DocID,
+			Title:   doc.Title,
+			AddedAt: doc.AddedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+
+	shared.WriteJSON(w, http.StatusOK, response)
 }
 
 // checkDocumentOwnership verifies the user can manage the document (admin or owner).
@@ -1150,10 +1207,31 @@ func (h *Handler) HandleAddMyExpectedSigner(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Check signer quota
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckSignerAdd(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+				return
+			}
+		}
+	}
+
 	contacts := []models.ContactInfo{{Email: req.Email, Name: req.Name}}
 	if err := h.adminService.AddExpectedSigners(ctx, doc.DocID, contacts, user.Email); err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to add expected signer", nil)
 		return
+	}
+
+	// Record signer quota usage
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.RecordSignerAdd(ctx, tenantID); err != nil {
+				logger.Logger.Warn("Failed to record signer add quota", "tenant_id", tenantID, "error", err.Error())
+			}
+		}
 	}
 
 	shared.WriteJSON(w, http.StatusCreated, map[string]interface{}{

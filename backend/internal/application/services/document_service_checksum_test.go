@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,10 @@ func (m *mockDocExpectedSignerRepo) ListByDocID(_ context.Context, _ string) ([]
 
 func (m *mockDocExpectedSignerRepo) GetStats(_ context.Context, _ string) (*models.DocCompletionStats, error) {
 	return &models.DocCompletionStats{}, nil
+}
+
+func (m *mockDocExpectedSignerRepo) FindPendingForEmail(_ context.Context, _ string) ([]*models.PendingDocument, error) {
+	return nil, nil
 }
 
 // Test automatic checksum computation with valid PDF
@@ -78,7 +83,7 @@ func TestDocumentService_CreateDocument_WithAutomaticChecksum(t *testing.T) {
 	}
 }
 
-// Test automatic checksum computation with HTTP (should be rejected)
+// Test automatic checksum computation with HTTP (should be rejected with ErrHTTPSRequired)
 func TestDocumentService_CreateDocument_RejectsHTTP(t *testing.T) {
 	mockRepo := &mockDocumentRepository{}
 	checksumConfig := &config.ChecksumConfig{
@@ -100,15 +105,13 @@ func TestDocumentService_CreateDocument_RejectsHTTP(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	doc, err := service.CreateDocument(ctx, req)
+	_, err := service.CreateDocument(ctx, req)
 
-	if err != nil {
-		t.Fatalf("CreateDocument failed: %v", err)
+	if err == nil {
+		t.Fatal("Expected error for HTTP URL, got nil")
 	}
-
-	// Document should be created, but without checksum
-	if doc.Checksum != "" {
-		t.Error("Expected checksum to be empty for HTTP URL, got", doc.Checksum)
+	if !errors.Is(err, ErrHTTPSRequired) {
+		t.Errorf("Expected ErrHTTPSRequired, got %v", err)
 	}
 }
 

@@ -62,11 +62,12 @@ type AppConfig struct {
 	SecureCookies      bool
 	AdminEmails        []string
 	OnlyAdminCanCreate bool
-	SMTPEnabled        bool // True if SMTP is configured (for email reminders)
-	AuthRateLimit      int  // Global auth rate limit (requests per minute), default: 5
-	DocumentRateLimit  int  // Document creation rate limit (requests per minute), default: 10
-	GeneralRateLimit   int  // General API rate limit (requests per minute), default: 100
-	ImportMaxSigners   int  // Maximum signers per CSV import, default: 500
+	AllowedDomains     []string // Whitelist of allowed domains for document URLs (supports wildcards like *.company.com)
+	SMTPEnabled        bool     // True if SMTP is configured (for email reminders)
+	AuthRateLimit      int      // Global auth rate limit (requests per minute), default: 5
+	DocumentRateLimit  int      // Document creation rate limit (requests per minute), default: 10
+	GeneralRateLimit   int      // General API rate limit (requests per minute), default: 100
+	ImportMaxSigners   int      // Maximum signers per CSV import, default: 500
 }
 
 type DatabaseConfig struct {
@@ -231,6 +232,17 @@ func Load() (*Config, error) {
 
 	// Parse admin-only document creation flag
 	config.App.OnlyAdminCanCreate = getEnvBool("ACKIFY_ONLY_ADMIN_CAN_CREATE", false)
+
+	// Parse allowed domains whitelist for document URLs
+	allowedDomainsStr := getEnv("ACKIFY_ALLOWED_DOMAINS", "")
+	if allowedDomainsStr != "" {
+		for _, domain := range strings.Split(allowedDomainsStr, ",") {
+			trimmed := strings.TrimSpace(domain)
+			if trimmed != "" {
+				config.App.AllowedDomains = append(config.App.AllowedDomains, trimmed)
+			}
+		}
+	}
 
 	// Parse mail config (optional, service disabled if MAIL_HOST not set)
 	mailHost := getEnv("ACKIFY_MAIL_HOST", "")

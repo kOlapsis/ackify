@@ -55,8 +55,9 @@ type TenantConfig struct {
 
 // GeneralConfig holds general application settings
 type GeneralConfig struct {
-	Organisation       string `json:"organisation"`
-	OnlyAdminCanCreate bool   `json:"only_admin_can_create"`
+	Organisation       string   `json:"organisation"`
+	OnlyAdminCanCreate bool     `json:"only_admin_can_create"`
+	AllowedDomains     []string `json:"allowed_domains"`
 }
 
 // OIDCConfig holds OIDC/OAuth2 authentication settings

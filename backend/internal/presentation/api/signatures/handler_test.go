@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -885,6 +886,136 @@ func BenchmarkHandler_HandleGetUserSignatures_Parallel(b *testing.B) {
 			handler.HandleGetUserSignatures(rec, req)
 		}
 	})
+}
+
+// ============================================================================
+// MOCKS - Quota
+// ============================================================================
+
+type mockQuotaRecorder struct {
+	checkCalled  bool
+	recordCalled bool
+	checkErr     error
+	recordErr    error
+}
+
+func (m *mockQuotaRecorder) CheckSignatureCreation(_ context.Context, _ string) error {
+	m.checkCalled = true
+	return m.checkErr
+}
+
+func (m *mockQuotaRecorder) RecordSignatureCreation(_ context.Context, _ string) error {
+	m.recordCalled = true
+	return m.recordErr
+}
+
+type mockTenantProvider struct {
+	tenantID uuid.UUID
+}
+
+func (m *mockTenantProvider) CurrentTenant(_ context.Context) (uuid.UUID, error) {
+	return m.tenantID, nil
+}
+
+// ============================================================================
+// TESTS - Quota Integration
+// ============================================================================
+
+func TestHandler_HandleCreateSignature_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{},
+		quotaRecorder:    recorder,
+		tenantProvider:   tp,
+	}
+
+	body, _ := json.Marshal(CreateSignatureRequest{DocID: "test-doc-123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/signatures", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateSignature(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called before creation")
+	assert.True(t, recorder.recordCalled, "quota record should be called after creation")
+}
+
+func TestHandler_HandleCreateSignature_QuotaExceeded(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{checkErr: fmt.Errorf("signature quota exceeded")}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{},
+		quotaRecorder:    recorder,
+		tenantProvider:   tp,
+	}
+
+	body, _ := json.Marshal(CreateSignatureRequest{DocID: "test-doc-123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/signatures", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateSignature(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called")
+	assert.False(t, recorder.recordCalled, "quota record should NOT be called when check fails")
+}
+
+func TestHandler_HandleCreateSignature_NoQuotaRecorder(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{},
+	}
+
+	body, _ := json.Marshal(CreateSignatureRequest{DocID: "test-doc-123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/signatures", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateSignature(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+}
+
+func TestHandler_HandleCreateSignature_QuotaNotRecordedOnError(t *testing.T) {
+	t.Parallel()
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := &Handler{
+		signatureService: &mockSignatureService{
+			createSignatureFunc: func(_ context.Context, _ *models.SignatureRequest) error {
+				return fmt.Errorf("database error")
+			},
+		},
+		quotaRecorder:  recorder,
+		tenantProvider: tp,
+	}
+
+	body, _ := json.Marshal(CreateSignatureRequest{DocID: "test-doc-123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/signatures", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(addUserToContext(req.Context(), testUser))
+	rec := httptest.NewRecorder()
+
+	handler.HandleCreateSignature(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.True(t, recorder.checkCalled, "quota check should be called before attempt")
+	assert.False(t, recorder.recordCalled, "quota record should NOT be called when creation fails")
 }
 
 func Benchmark_toSignatureResponse(b *testing.B) {

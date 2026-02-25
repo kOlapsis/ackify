@@ -1346,13 +1346,37 @@ func BenchmarkToDocumentResponse(b *testing.B) {
 // ============================================================================
 
 type mockQuotaRecorder struct {
-	deleteCalled bool
-	deleteErr    error
+	deleteCalled      bool
+	deleteErr         error
+	checkReminderErr  error
+	recordReminderErr error
+	reminderRecorded  int
+	checkSignerErr    error
+	recordSignerErr   error
+	signerRecorded    int
 }
 
 func (m *mockQuotaRecorder) RecordDocumentDeletion(_ context.Context, _ string) error {
 	m.deleteCalled = true
 	return m.deleteErr
+}
+
+func (m *mockQuotaRecorder) CheckReminderSend(_ context.Context, _ string) error {
+	return m.checkReminderErr
+}
+
+func (m *mockQuotaRecorder) RecordReminderSend(_ context.Context, _ string) error {
+	m.reminderRecorded++
+	return m.recordReminderErr
+}
+
+func (m *mockQuotaRecorder) CheckSignerAdd(_ context.Context, _ string) error {
+	return m.checkSignerErr
+}
+
+func (m *mockQuotaRecorder) RecordSignerAdd(_ context.Context, _ string) error {
+	m.signerRecorded++
+	return m.recordSignerErr
 }
 
 type mockTenantProvider struct {
@@ -1443,6 +1467,298 @@ func TestHandleDeleteDocument_NoQuotaRecorder(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+// ============================================================================
+// TESTS - HandleAddExpectedSigner with Quota
+// ============================================================================
+
+func TestHandleAddExpectedSigner_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		addExpectedSignersFunc: func(_ context.Context, docID string, contacts []models.ContactInfo, addedBy string) error {
+			assert.Equal(t, "doc1", docID)
+			assert.Len(t, contacts, 1)
+			assert.Equal(t, "new@example.com", contacts[0].Email)
+			return nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	body, _ := json.Marshal(AddExpectedSignerRequest{Email: "new@example.com", Name: "New User"})
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers", handler.HandleAddExpectedSigner)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusCreated, rec.Code)
+	assert.Equal(t, 1, recorder.signerRecorded, "signer quota should be recorded after successful add")
+}
+
+func TestHandleAddExpectedSigner_QuotaExceeded(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{}
+
+	recorder := &mockQuotaRecorder{checkSignerErr: errors.New("signer quota exceeded")}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	body, _ := json.Marshal(AddExpectedSignerRequest{Email: "new@example.com", Name: "New User"})
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers", handler.HandleAddExpectedSigner)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Equal(t, 0, recorder.signerRecorded, "signer quota should NOT be recorded when check fails")
+}
+
+func TestHandleAddExpectedSigner_QuotaNotRecordedOnError(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		addExpectedSignersFunc: func(_ context.Context, _ string, _ []models.ContactInfo, _ string) error {
+			return errors.New("database error")
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	body, _ := json.Marshal(AddExpectedSignerRequest{Email: "new@example.com", Name: "New User"})
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers", handler.HandleAddExpectedSigner)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, 0, recorder.signerRecorded, "signer quota should NOT be recorded when add fails")
+}
+
+// ============================================================================
+// TESTS - HandleImportSigners with Quota
+// ============================================================================
+
+func TestHandleImportSigners_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		listExpectedSignersFunc: func(_ context.Context, _ string) ([]*models.ExpectedSigner, error) {
+			return []*models.ExpectedSigner{}, nil // no existing signers
+		},
+		addExpectedSignersFunc: func(_ context.Context, _ string, contacts []models.ContactInfo, _ string) error {
+			return nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	reqBody := ImportSignersRequest{
+		Signers: []ImportSignerEntry{
+			{Email: "a@test.com", Name: "A"},
+			{Email: "b@test.com", Name: "B"},
+			{Email: "c@test.com", Name: "C"},
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers/import", handler.HandleImportSigners)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers/import", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, 3, recorder.signerRecorded, "signer quota should be recorded for each imported signer")
+}
+
+func TestHandleImportSigners_QuotaExceeded(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		listExpectedSignersFunc: func(_ context.Context, _ string) ([]*models.ExpectedSigner, error) {
+			return []*models.ExpectedSigner{}, nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{checkSignerErr: errors.New("signer quota exceeded")}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	reqBody := ImportSignersRequest{
+		Signers: []ImportSignerEntry{
+			{Email: "a@test.com", Name: "A"},
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers/import", handler.HandleImportSigners)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers/import", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Equal(t, 0, recorder.signerRecorded, "signer quota should NOT be recorded when check fails")
+}
+
+func TestHandleImportSigners_SkippedSignersNotCounted(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		listExpectedSignersFunc: func(_ context.Context, _ string) ([]*models.ExpectedSigner, error) {
+			return []*models.ExpectedSigner{
+				{Email: "existing@test.com"},
+			}, nil
+		},
+		addExpectedSignersFunc: func(_ context.Context, _ string, _ []models.ContactInfo, _ string) error {
+			return nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, nil, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	reqBody := ImportSignersRequest{
+		Signers: []ImportSignerEntry{
+			{Email: "existing@test.com", Name: "Existing"},
+			{Email: "new@test.com", Name: "New"},
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/signers/import", handler.HandleImportSigners)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/signers/import", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, 1, recorder.signerRecorded, "only new signers should be quota-recorded, not skipped ones")
+}
+
+// ============================================================================
+// TESTS - HandleSendReminders with Quota
+// ============================================================================
+
+func TestHandleSendReminders_QuotaCheckAndRecord(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		getDocumentFunc: func(_ context.Context, docID string) (*models.Document, error) {
+			return &models.Document{DocID: docID, Title: "Test Doc", URL: "https://test.com/doc"}, nil
+		},
+	}
+
+	reminderSvc := &mockReminderService{
+		sendRemindersFunc: func(_ context.Context, _ string, _ string, _ []string, _ string, _ string) (*models.ReminderSendResult, error) {
+			return &models.ReminderSendResult{
+				TotalAttempted:   2,
+				SuccessfullySent: 2,
+				Failed:           0,
+			}, nil
+		},
+	}
+
+	recorder := &mockQuotaRecorder{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, reminderSvc, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/reminders", handler.HandleSendReminders)
+
+	body, _ := json.Marshal(map[string]interface{}{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/reminders", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, 2, recorder.reminderRecorded, "reminder quota should be recorded for each attempted reminder")
+}
+
+func TestHandleSendReminders_QuotaExceeded(t *testing.T) {
+	t.Parallel()
+
+	adminSvc := &mockAdminService{
+		getDocumentFunc: func(_ context.Context, docID string) (*models.Document, error) {
+			return &models.Document{DocID: docID, Title: "Test Doc", URL: "https://test.com/doc"}, nil
+		},
+	}
+
+	reminderSvc := &mockReminderService{}
+
+	recorder := &mockQuotaRecorder{checkReminderErr: errors.New("reminder quota exceeded")}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+
+	handler := createTestHandler(adminSvc, reminderSvc, nil)
+	handler.WithQuotaRecorder(recorder, tp)
+
+	router := chi.NewRouter()
+	router.Post("/api/v1/admin/documents/{docId}/reminders", handler.HandleSendReminders)
+
+	body, _ := json.Marshal(map[string]interface{}{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc1/reminders", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(createContextWithUser("admin@test.com", true))
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Equal(t, 0, recorder.reminderRecorded, "reminder quota should NOT be recorded when check fails")
 }
 
 func BenchmarkToExpectedSignerResponse(b *testing.B) {
