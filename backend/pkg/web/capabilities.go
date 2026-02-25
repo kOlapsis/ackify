@@ -19,6 +19,7 @@ var (
 
 // Re-export types from pkg/providers for convenience.
 type AuthProvider = providers.AuthProvider
+type MagicLinkProvider = providers.MagicLinkProvider
 type Authorizer = providers.Authorizer
 type MagicLinkResult = providers.MagicLinkResult
 

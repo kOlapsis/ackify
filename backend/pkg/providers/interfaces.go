@@ -106,6 +106,11 @@ type OAuthAuthProvider interface {
 	AuthProvider
 }
 
+// MagicLinkProvider verifies reminder auth tokens.
+type MagicLinkProvider interface {
+	VerifyReminderAuthToken(ctx context.Context, token, ip, userAgent string) (email string, docID *string, err error)
+}
+
 // TenantProvider defines the interface for obtaining the current tenant ID.
 type TenantProvider interface {
 	CurrentTenant(ctx context.Context) (uuid.UUID, error)

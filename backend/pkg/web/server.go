@@ -46,10 +46,11 @@ type Server struct {
 	baseURL         string
 
 	// Capability providers
-	authProvider  AuthProvider
-	authorizer    Authorizer
-	quotaEnforcer QuotaEnforcer
-	auditLogger   AuditLogger
+	authProvider      AuthProvider
+	magicLinkProvider MagicLinkProvider
+	authorizer        Authorizer
+	quotaEnforcer     QuotaEnforcer
+	auditLogger       AuditLogger
 }
 
 // ServerBuilder allows dependency injection for extensibility.
@@ -67,10 +68,11 @@ type ServerBuilder struct {
 	tenantProvider providers.TenantProvider
 
 	// Capability providers (all have CE defaults)
-	authProvider  AuthProvider
-	authorizer    Authorizer
-	quotaEnforcer QuotaEnforcer
-	auditLogger   AuditLogger
+	authProvider      AuthProvider
+	magicLinkProvider MagicLinkProvider
+	authorizer        Authorizer
+	quotaEnforcer     QuotaEnforcer
+	auditLogger       AuditLogger
 
 	// Optional overrides
 	baseURLProvider services.BaseURLProvider
@@ -159,6 +161,9 @@ func (b *ServerBuilder) Build(ctx context.Context) (*Server, error) {
 		return nil, err
 	}
 	b.initializeMagicLinkService(repos)
+	if b.magicLinkProvider == nil {
+		b.magicLinkProvider = &magicLinkReminderAdapter{svc: b.magicLinkService}
+	}
 	b.initializeSessionService(repos)
 
 	// Now we can set default providers (they depend on services above)
@@ -196,19 +201,20 @@ func (b *ServerBuilder) Build(ctx context.Context) (*Server, error) {
 	}
 
 	return &Server{
-		httpServer:      httpServer,
-		db:              b.db,
-		router:          router,
-		emailSender:     b.emailSender,
-		emailWorker:     emailWorker,
-		webhookWorker:   whWorker,
-		sessionWorker:   sessionWorker,
-		magicLinkWorker: magicLinkWorker,
-		baseURL:         b.cfg.App.BaseURL,
-		authProvider:    b.authProvider,
-		authorizer:      b.authorizer,
-		quotaEnforcer:   b.quotaEnforcer,
-		auditLogger:     b.auditLogger,
+		httpServer:        httpServer,
+		db:                b.db,
+		router:            router,
+		emailSender:       b.emailSender,
+		emailWorker:       emailWorker,
+		webhookWorker:     whWorker,
+		sessionWorker:     sessionWorker,
+		magicLinkWorker:   magicLinkWorker,
+		baseURL:           b.cfg.App.BaseURL,
+		authProvider:      b.authProvider,
+		authorizer:        b.authorizer,
+		quotaEnforcer:     b.quotaEnforcer,
+		auditLogger:       b.auditLogger,
+		magicLinkProvider: b.magicLinkProvider,
 	}, nil
 }
 
@@ -581,6 +587,10 @@ func (s *Server) GetAuthProvider() AuthProvider {
 	return s.authProvider
 }
 
+func (s *Server) GetMagicLinkProvider() MagicLinkProvider {
+	return s.magicLinkProvider
+}
+
 func (s *Server) GetAuthorizer() Authorizer {
 	return s.authorizer
 }
@@ -595,6 +605,19 @@ func (s *Server) GetAuditLogger() AuditLogger {
 
 func (s *Server) GetEmailSender() email.Sender {
 	return s.emailSender
+}
+
+// magicLinkReminderAdapter adapts MagicLinkService to MagicLinkProvider interface.
+type magicLinkReminderAdapter struct {
+	svc *services.MagicLinkService
+}
+
+func (a *magicLinkReminderAdapter) VerifyReminderAuthToken(ctx context.Context, token, ip, userAgent string) (string, *string, error) {
+	result, err := a.svc.VerifyReminderAuthToken(ctx, token, ip, userAgent)
+	if err != nil {
+		return "", nil, err
+	}
+	return result.Email, result.DocID, nil
 }
 
 // === Helper Functions ===
