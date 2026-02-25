@@ -39,6 +39,17 @@ type translator interface {
 	T(locale, key string) string
 }
 
+// BaseURLProvider returns the base URL for the current context.
+// CE uses StaticBaseURL; SaaS can resolve tenant-specific URLs.
+type BaseURLProvider interface {
+	GetBaseURL(ctx context.Context) string
+}
+
+// StaticBaseURL is a BaseURLProvider that always returns the same value.
+type StaticBaseURL string
+
+func (s StaticBaseURL) GetBaseURL(_ context.Context) string { return string(s) }
+
 // ReminderAsyncService manages email notifications using asynchronous queue
 type ReminderAsyncService struct {
 	expectedSignerRepo asyncExpectedSignerRepository
@@ -46,7 +57,7 @@ type ReminderAsyncService struct {
 	queueRepo          emailQueueRepository
 	magicLinkService   asyncMagicLinkService
 	i18n               translator
-	baseURL            string
+	baseURLProvider    BaseURLProvider
 	useAsyncQueue      bool // Feature flag to enable/disable async queue
 }
 
@@ -57,7 +68,7 @@ func NewReminderAsyncService(
 	queueRepo emailQueueRepository,
 	magicLinkService asyncMagicLinkService,
 	i18nService translator,
-	baseURL string,
+	baseURLProvider BaseURLProvider,
 ) *ReminderAsyncService {
 	return &ReminderAsyncService{
 		expectedSignerRepo: expectedSignerRepo,
@@ -65,7 +76,7 @@ func NewReminderAsyncService(
 		queueRepo:          queueRepo,
 		magicLinkService:   magicLinkService,
 		i18n:               i18nService,
-		baseURL:            baseURL,
+		baseURLProvider:    baseURLProvider,
 		useAsyncQueue:      true, // Enable async by default
 	}
 }
@@ -179,7 +190,7 @@ func (s *ReminderAsyncService) queueSingleReminder(
 	}
 
 	// Construire l'URL d'authentification qui redirigera vers la page de signature
-	authSignURL := fmt.Sprintf("%s/api/v1/auth/reminder-link/verify?token=%s", s.baseURL, token)
+	authSignURL := fmt.Sprintf("%s/api/v1/auth/reminder-link/verify?token=%s", s.baseURLProvider.GetBaseURL(ctx), token)
 
 	logger.Logger.Debug("Generated auth sign URL for reminder",
 		"doc_id", docID,

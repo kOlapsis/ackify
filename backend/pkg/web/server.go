@@ -430,7 +430,7 @@ func (b *ServerBuilder) initializeReminderService(repos *repositories) {
 		repos.emailQueue,
 		b.magicLinkService,
 		b.i18nService,
-		b.cfg.App.BaseURL,
+		services.StaticBaseURL(b.cfg.App.BaseURL),
 	)
 }
 
