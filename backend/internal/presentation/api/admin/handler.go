@@ -62,6 +62,7 @@ type Handler struct {
 	signatureService signatureService
 	quotaRecorder    QuotaRecorder
 	tenantProvider   providers.TenantProvider
+	auditLogger      shared.AuditLogger
 	baseURL          string
 	importMaxSigners int
 }
@@ -81,6 +82,12 @@ func NewHandler(adminService adminService, reminderService reminderService, sign
 func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
 	h.quotaRecorder = recorder
 	h.tenantProvider = tp
+	return h
+}
+
+// WithAuditLogger sets the audit logger for admin events.
+func (h *Handler) WithAuditLogger(logger shared.AuditLogger) *Handler {
+	h.auditLogger = logger
 	return h
 }
 
@@ -340,6 +347,9 @@ func (h *Handler) HandleAddExpectedSigner(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "signer.add", "document", docID, map[string]any{"signer_email": req.Email})
+
 	shared.WriteJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Expected signer added successfully",
 		"email":   req.Email,
@@ -372,6 +382,9 @@ func (h *Handler) HandleRemoveExpectedSigner(w http.ResponseWriter, r *http.Requ
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to remove expected signer", nil)
 		return
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "signer.remove", "document", docID, map[string]any{"signer_email": email})
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Expected signer removed successfully",
@@ -516,6 +529,9 @@ func (h *Handler) HandleSendReminders(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "reminder.send", "document", docID, map[string]any{"count": result.TotalAttempted})
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Reminders sent",
@@ -809,6 +825,9 @@ func (h *Handler) HandleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "document.delete", "document", docID, nil)
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Document deleted successfully",

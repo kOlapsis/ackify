@@ -25,6 +25,7 @@ import (
 	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/webhook"
 	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/workers"
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/api"
+	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/handlers"
 	"github.com/btouchard/ackify-ce/backend/pkg/crypto"
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
@@ -51,6 +52,9 @@ type Server struct {
 	authorizer        Authorizer
 	quotaEnforcer     QuotaEnforcer
 	auditLogger       AuditLogger
+
+	// Internal services (exposed for SaaS multi-tenant override)
+	configService *services.ConfigService
 }
 
 // ServerBuilder allows dependency injection for extensibility.
@@ -75,7 +79,8 @@ type ServerBuilder struct {
 	auditLogger       AuditLogger
 
 	// Optional overrides
-	baseURLProvider services.BaseURLProvider
+	baseURLProvider     services.BaseURLProvider
+	storageQuotaChecker StorageQuotaChecker
 
 	// Internal infrastructure (created by Build)
 	signer          *crypto.Ed25519Signer
@@ -141,6 +146,19 @@ func (b *ServerBuilder) WithAuditLogger(logger AuditLogger) *ServerBuilder {
 
 func (b *ServerBuilder) WithBaseURLProvider(p services.BaseURLProvider) *ServerBuilder {
 	b.baseURLProvider = p
+	return b
+}
+
+// WithStorageProvider injects an external storage provider (optional).
+// When set, the builder will not create its own storage provider from config.
+func (b *ServerBuilder) WithStorageProvider(p storage.Provider) *ServerBuilder {
+	b.storageProvider = p
+	return b
+}
+
+// WithStorageQuotaChecker injects a storage quota checker (optional).
+func (b *ServerBuilder) WithStorageQuotaChecker(checker StorageQuotaChecker) *ServerBuilder {
+	b.storageQuotaChecker = checker
 	return b
 }
 
@@ -215,6 +233,7 @@ func (b *ServerBuilder) Build(ctx context.Context) (*Server, error) {
 		quotaEnforcer:     b.quotaEnforcer,
 		auditLogger:       b.auditLogger,
 		magicLinkProvider: b.magicLinkProvider,
+		configService:     b.configService,
 	}, nil
 }
 
@@ -279,8 +298,8 @@ func (b *ServerBuilder) initializeInfrastructure() error {
 		b.emailSender = email.NewSMTPSender(b.cfg.Mail, b.emailRenderer)
 	}
 
-	// Storage
-	if b.cfg.Storage.IsEnabled() {
+	// Storage (skip if already injected via WithStorageProvider)
+	if b.storageProvider == nil && b.cfg.Storage.IsEnabled() {
 		provider, err := storage.NewProvider(b.cfg.Storage)
 		if err != nil {
 			return fmt.Errorf("failed to initialize storage provider: %w", err)
@@ -479,6 +498,25 @@ func (a *apiQuotaAdapter) Record(ctx context.Context, tenantID string, action st
 	return a.enforcer.Record(ctx, tenantID, QuotaAction(action))
 }
 
+// auditLoggerAdapter adapts web.AuditLogger to shared.AuditLogger used by internal handlers.
+type auditLoggerAdapter struct {
+	logger AuditLogger
+}
+
+func (a *auditLoggerAdapter) Log(ctx context.Context, event shared.AuditEvent) error {
+	return a.logger.Log(ctx, AuditEvent{
+		Timestamp:  event.Timestamp,
+		TenantID:   event.TenantID,
+		UserEmail:  event.UserEmail,
+		Action:     event.Action,
+		Resource:   event.Resource,
+		ResourceID: event.ResourceID,
+		Details:    event.Details,
+		IPAddress:  event.IPAddress,
+		UserAgent:  event.UserAgent,
+	})
+}
+
 func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.WebhookPublisher) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(i18n.Middleware(b.i18nService))
@@ -491,18 +529,20 @@ func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.W
 		TenantProvider: b.tenantProvider,
 
 		// Capability providers (TenantProvider handles OIDC + MagicLink dynamically)
-		AuthProvider:     b.authProvider,
-		Authorizer:       b.authorizer,
-		QuotaEnforcer:    &apiQuotaAdapter{enforcer: b.quotaEnforcer},
-		SignatureService: b.signatureService,
-		DocumentService:  b.documentService,
-		AdminService:     b.adminService,
-		ReminderService:  b.reminderService,
-		WebhookService:   b.webhookService,
-		WebhookPublisher: whPublisher,
-		StorageProvider:  b.storageProvider,
-		StorageMaxSizeMB: b.cfg.Storage.MaxSizeMB,
-		BaseURL:          b.cfg.App.BaseURL,
+		AuthProvider:        b.authProvider,
+		Authorizer:          b.authorizer,
+		QuotaEnforcer:       &apiQuotaAdapter{enforcer: b.quotaEnforcer},
+		SignatureService:    b.signatureService,
+		DocumentService:     b.documentService,
+		AdminService:        b.adminService,
+		ReminderService:     b.reminderService,
+		WebhookService:      b.webhookService,
+		WebhookPublisher:    whPublisher,
+		StorageProvider:     b.storageProvider,
+		StorageMaxSizeMB:    b.cfg.Storage.MaxSizeMB,
+		StorageQuotaChecker: b.storageQuotaChecker,
+		AuditLogger:         &auditLoggerAdapter{logger: b.auditLogger},
+		BaseURL:             b.cfg.App.BaseURL,
 
 		// Rate limiting
 		AuthRateLimit:     b.cfg.App.AuthRateLimit,
@@ -523,6 +563,13 @@ func (b *ServerBuilder) buildRouter(repos *repositories, whPublisher *services.W
 }
 
 // === Server Methods ===
+
+// ConfigService returns the internal ConfigService for multi-tenant overrides.
+// In SaaS mode, callers can use Reload(ctx) to refresh config from the DB
+// for the current tenant before reading it.
+func (s *Server) ConfigService() *services.ConfigService {
+	return s.configService
+}
 
 func (s *Server) Start() error {
 	return s.httpServer.ListenAndServe()

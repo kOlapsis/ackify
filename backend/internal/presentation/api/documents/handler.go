@@ -76,6 +76,7 @@ type Handler struct {
 	authorizer       providers.Authorizer
 	quotaRecorder    QuotaRecorder
 	tenantProvider   providers.TenantProvider
+	auditLogger      shared.AuditLogger
 	baseURL          string
 }
 
@@ -98,6 +99,12 @@ func NewHandler(
 func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
 	h.quotaRecorder = recorder
 	h.tenantProvider = tp
+	return h
+}
+
+// WithAuditLogger sets the audit logger for document events.
+func (h *Handler) WithAuditLogger(logger shared.AuditLogger) *Handler {
+	h.auditLogger = logger
 	return h
 }
 
@@ -270,6 +277,9 @@ func (h *Handler) HandleCreateDocument(w http.ResponseWriter, r *http.Request) {
 			"checksum_algorithm": doc.ChecksumAlgorithm,
 		})
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "document.create", "document", doc.DocID, map[string]any{"title": doc.Title})
 
 	// Return the created document
 	response := CreateDocumentResponse{
@@ -1179,6 +1189,9 @@ func (h *Handler) HandleDeleteMyDocument(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "document.delete", "document", doc.DocID, nil)
+
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Document deleted successfully",
 	})
@@ -1234,6 +1247,9 @@ func (h *Handler) HandleAddMyExpectedSigner(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "signer.add", "document", doc.DocID, map[string]any{"signer_email": req.Email})
+
 	shared.WriteJSON(w, http.StatusCreated, map[string]interface{}{
 		"message": "Expected signer added successfully",
 		"email":   req.Email,
@@ -1267,6 +1283,9 @@ func (h *Handler) HandleRemoveMyExpectedSigner(w http.ResponseWriter, r *http.Re
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to remove expected signer", nil)
 		return
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "signer.remove", "document", doc.DocID, map[string]any{"signer_email": email})
 
 	shared.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "Expected signer removed successfully",

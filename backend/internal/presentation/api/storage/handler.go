@@ -93,10 +93,17 @@ type documentService interface {
 	GetByDocID(ctx context.Context, docID string) (*models.Document, error)
 }
 
+// StorageQuotaChecker verifies storage quota before upload.
+type StorageQuotaChecker interface {
+	CheckStorageQuota(ctx context.Context, tenantID string, fileSize int64) error
+}
+
 type Handler struct {
-	provider   storage.Provider
-	docService documentService
-	maxSizeMB  int64
+	provider     storage.Provider
+	docService   documentService
+	maxSizeMB    int64
+	quotaChecker StorageQuotaChecker
+	tenantID     func(ctx context.Context) string
 }
 
 func NewHandler(provider storage.Provider, docService documentService, maxSizeMB int64) *Handler {
@@ -105,6 +112,13 @@ func NewHandler(provider storage.Provider, docService documentService, maxSizeMB
 		docService: docService,
 		maxSizeMB:  maxSizeMB,
 	}
+}
+
+// WithStorageQuotaChecker sets the storage quota checker.
+func (h *Handler) WithStorageQuotaChecker(checker StorageQuotaChecker, getTenantID func(ctx context.Context) string) *Handler {
+	h.quotaChecker = checker
+	h.tenantID = getTenantID
+	return h
 }
 
 func (h *Handler) IsEnabled() bool {
@@ -160,6 +174,17 @@ func (h *Handler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+
+	// Check storage quota before upload
+	if h.quotaChecker != nil && h.tenantID != nil {
+		tenantID := h.tenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaChecker.CheckStorageQuota(ctx, tenantID, header.Size); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Storage quota exceeded", nil)
+				return
+			}
+		}
+	}
 
 	// Get optional title from form
 	title := r.FormValue("title")

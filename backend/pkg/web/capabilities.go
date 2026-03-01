@@ -49,3 +49,11 @@ type AuditLogger interface {
 	// Log records an audit event.
 	Log(ctx context.Context, event AuditEvent) error
 }
+
+// StorageQuotaChecker verifies storage quota before file upload.
+// CE: nil (no storage quota).
+// SaaS: PlanBasedStorageQuotaChecker (limits based on subscription plan).
+type StorageQuotaChecker interface {
+	// CheckStorageQuota returns an error if the upload would exceed the storage quota.
+	CheckStorageQuota(ctx context.Context, tenantID string, fileSize int64) error
+}

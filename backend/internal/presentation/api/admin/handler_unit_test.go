@@ -1761,6 +1761,151 @@ func TestHandleSendReminders_QuotaExceeded(t *testing.T) {
 	assert.Equal(t, 0, recorder.reminderRecorded, "reminder quota should NOT be recorded when check fails")
 }
 
+// ============================================================================
+// TESTS — Audit Logging
+// ============================================================================
+
+type mockAuditLogger struct {
+	events []shared.AuditEvent
+}
+
+func (m *mockAuditLogger) Log(_ context.Context, event shared.AuditEvent) error {
+	m.events = append(m.events, event)
+	return nil
+}
+
+func TestHandler_HandleDeleteDocument_EmitsAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	auditLog := &mockAuditLogger{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+	svc := &mockAdminService{
+		deleteDocumentFunc: func(_ context.Context, _ string) error { return nil },
+		getDocumentFunc: func(_ context.Context, _ string) (*models.Document, error) {
+			return createTestDocument("doc-123"), nil
+		},
+	}
+
+	handler := createTestHandler(svc, &mockReminderService{}, &mockSignatureService{}).
+		WithQuotaRecorder(&mockQuotaRecorder{}, tp).
+		WithAuditLogger(auditLog)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/documents/doc-123", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("docId", "doc-123")
+	ctx := createContextWithUser("admin@example.com", true)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.HandleDeleteDocument(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, auditLog.events, 1)
+	assert.Equal(t, "document.delete", auditLog.events[0].Action)
+	assert.Equal(t, "document", auditLog.events[0].Resource)
+	assert.Equal(t, "doc-123", auditLog.events[0].ResourceID)
+}
+
+func TestHandler_HandleAddExpectedSigner_EmitsAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	auditLog := &mockAuditLogger{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+	svc := &mockAdminService{
+		addExpectedSignersFunc: func(_ context.Context, _ string, _ []models.ContactInfo, _ string) error {
+			return nil
+		},
+	}
+
+	handler := createTestHandler(svc, &mockReminderService{}, &mockSignatureService{}).
+		WithQuotaRecorder(&mockQuotaRecorder{}, tp).
+		WithAuditLogger(auditLog)
+
+	body, _ := json.Marshal(map[string]string{"email": "signer@test.com", "name": "Test Signer"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc-123/signers", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("docId", "doc-123")
+	ctx := createContextWithUser("admin@example.com", true)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.HandleAddExpectedSigner(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Len(t, auditLog.events, 1)
+	assert.Equal(t, "signer.add", auditLog.events[0].Action)
+	assert.Equal(t, "document", auditLog.events[0].Resource)
+	assert.Equal(t, "doc-123", auditLog.events[0].ResourceID)
+	assert.Equal(t, "signer@test.com", auditLog.events[0].Details["signer_email"])
+}
+
+func TestHandler_HandleRemoveExpectedSigner_EmitsAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	auditLog := &mockAuditLogger{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+	svc := &mockAdminService{
+		removeExpectedSignerFunc: func(_ context.Context, _, _ string) error { return nil },
+	}
+
+	handler := createTestHandler(svc, &mockReminderService{}, &mockSignatureService{}).
+		WithQuotaRecorder(&mockQuotaRecorder{}, tp).
+		WithAuditLogger(auditLog)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/documents/doc-123/signers/signer@test.com", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("docId", "doc-123")
+	rctx.URLParams.Add("email", "signer@test.com")
+	ctx := createContextWithUser("admin@example.com", true)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.HandleRemoveExpectedSigner(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, auditLog.events, 1)
+	assert.Equal(t, "signer.remove", auditLog.events[0].Action)
+	assert.Equal(t, "signer@test.com", auditLog.events[0].Details["signer_email"])
+}
+
+func TestHandler_HandleSendReminders_EmitsAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	auditLog := &mockAuditLogger{}
+	tp := &mockTenantProvider{tenantID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")}
+	reminderSvc := &mockReminderService{
+		sendRemindersFunc: func(_ context.Context, _, _ string, _ []string, _ string, _ string) (*models.ReminderSendResult, error) {
+			return &models.ReminderSendResult{TotalAttempted: 3, SuccessfullySent: 3}, nil
+		},
+	}
+
+	handler := createTestHandler(&mockAdminService{}, reminderSvc, &mockSignatureService{}).
+		WithQuotaRecorder(&mockQuotaRecorder{}, tp).
+		WithAuditLogger(auditLog)
+
+	body, _ := json.Marshal(map[string]any{"locale": "fr"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/documents/doc-123/reminders", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("docId", "doc-123")
+	ctx := createContextWithUser("admin@example.com", true)
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.HandleSendReminders(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, auditLog.events, 1)
+	assert.Equal(t, "reminder.send", auditLog.events[0].Action)
+	assert.Equal(t, "document", auditLog.events[0].Resource)
+	assert.Equal(t, "doc-123", auditLog.events[0].ResourceID)
+}
+
 func BenchmarkToExpectedSignerResponse(b *testing.B) {
 	signer := createTestExpectedSignerWithStatus("doc1", "test@example.com", true)
 

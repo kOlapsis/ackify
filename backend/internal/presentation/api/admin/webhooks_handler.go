@@ -9,6 +9,7 @@ import (
 
 	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
 	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -23,13 +24,45 @@ type webhookService interface {
 	ListDeliveries(ctx context.Context, webhookID int64, limit, offset int) ([]*models.WebhookDelivery, error)
 }
 
+// WebhookQuotaRecorder tracks webhook quota usage.
+type WebhookQuotaRecorder interface {
+	CheckWebhookCreate(ctx context.Context, tenantID string) error
+}
+
 // WebhooksHandler groups operations on webhooks
 type WebhooksHandler struct {
-	service webhookService
+	service        webhookService
+	quotaRecorder  WebhookQuotaRecorder
+	tenantProvider providers.TenantProvider
+	auditLogger    shared.AuditLogger
 }
 
 func NewWebhooksHandler(service webhookService) *WebhooksHandler {
 	return &WebhooksHandler{service: service}
+}
+
+// WithQuotaRecorder sets the quota recorder for webhook creation tracking.
+func (h *WebhooksHandler) WithQuotaRecorder(recorder WebhookQuotaRecorder, tp providers.TenantProvider) *WebhooksHandler {
+	h.quotaRecorder = recorder
+	h.tenantProvider = tp
+	return h
+}
+
+// WithAuditLogger sets the audit logger for webhook events.
+func (h *WebhooksHandler) WithAuditLogger(logger shared.AuditLogger) *WebhooksHandler {
+	h.auditLogger = logger
+	return h
+}
+
+func (h *WebhooksHandler) getTenantID(ctx context.Context) string {
+	if h.tenantProvider == nil {
+		return ""
+	}
+	tid, err := h.tenantProvider.CurrentTenant(ctx)
+	if err != nil {
+		return ""
+	}
+	return tid.String()
 }
 
 type CreateWebhookRequest struct {
@@ -53,6 +86,18 @@ func (h *WebhooksHandler) HandleCreateWebhook(w http.ResponseWriter, r *http.Req
 		shared.WriteError(w, http.StatusBadRequest, shared.ErrCodeBadRequest, "title, targetUrl, secret and events are required", nil)
 		return
 	}
+
+	// Check webhook quota before creation
+	if h.quotaRecorder != nil {
+		tenantID := h.getTenantID(ctx)
+		if tenantID != "" {
+			if err := h.quotaRecorder.CheckWebhookCreate(ctx, tenantID); err != nil {
+				shared.WriteError(w, http.StatusForbidden, shared.ErrCodeForbidden, "Quota exceeded", nil)
+				return
+			}
+		}
+	}
+
 	user, _ := shared.GetUserFromContext(ctx)
 	input := models.WebhookInput{Title: req.Title, TargetURL: req.TargetURL, Secret: req.Secret, Active: req.Active, Events: req.Events, Headers: req.Headers, Description: req.Description}
 	if user != nil {
@@ -63,6 +108,10 @@ func (h *WebhooksHandler) HandleCreateWebhook(w http.ResponseWriter, r *http.Req
 		shared.WriteInternalError(w)
 		return
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "webhook.create", "webhook", strconv.FormatInt(wh.ID, 10), map[string]any{"title": req.Title, "target_url": req.TargetURL})
+
 	shared.WriteJSON(w, http.StatusCreated, wh)
 }
 
@@ -134,6 +183,10 @@ func (h *WebhooksHandler) HandleDeleteWebhook(w http.ResponseWriter, r *http.Req
 		shared.WriteInternalError(w)
 		return
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "webhook.delete", "webhook", strconv.FormatInt(id, 10), nil)
+
 	shared.WriteJSON(w, http.StatusOK, map[string]string{"message": "Webhook deleted"})
 }
 

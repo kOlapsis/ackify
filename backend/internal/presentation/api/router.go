@@ -127,6 +127,7 @@ type RouterConfig struct {
 	AuthProvider  providers.AuthProvider // Required - unified auth provider
 	Authorizer    providers.Authorizer   // Required for authorization decisions
 	QuotaEnforcer QuotaEnforcer          // Optional - quota enforcement (SaaS)
+	AuditLogger   shared.AuditLogger     // Optional - audit logging (SaaS)
 
 	// Services
 	SignatureService signatureService
@@ -138,8 +139,9 @@ type RouterConfig struct {
 	ConfigService    configService
 
 	// Storage
-	StorageProvider  storage.Provider // Optional, for document file storage
-	StorageMaxSizeMB int64            // Maximum upload size in MB
+	StorageProvider     storage.Provider               // Optional, for document file storage
+	StorageMaxSizeMB    int64                          // Maximum upload size in MB
+	StorageQuotaChecker apiStorage.StorageQuotaChecker // Optional, for storage quota enforcement (SaaS)
 
 	// Configuration
 	BaseURL           string
@@ -195,6 +197,12 @@ func (a *quotaRecorderAdapter) CheckSignatureCreation(ctx context.Context, tenan
 
 func (a *quotaRecorderAdapter) RecordSignatureCreation(ctx context.Context, tenantID string) error {
 	return a.enforcer.Record(ctx, tenantID, "signature.create")
+}
+
+// admin.WebhookQuotaRecorder
+
+func (a *quotaRecorderAdapter) CheckWebhookCreate(ctx context.Context, tenantID string) error {
+	return a.enforcer.Check(ctx, tenantID, "webhook.create")
 }
 
 // NewRouter creates and configures the API v1 router
@@ -257,12 +265,18 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 			cfg.TenantProvider,
 		)
 	}
+	if cfg.AuditLogger != nil {
+		documentsHandler.WithAuditLogger(cfg.AuditLogger)
+	}
 	signaturesHandler := signatures.NewHandler(cfg.SignatureService, cfg.AdminService, cfg.WebhookPublisher)
 	if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
 		signaturesHandler.WithQuotaRecorder(
 			&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
 			cfg.TenantProvider,
 		)
+	}
+	if cfg.AuditLogger != nil {
+		signaturesHandler.WithAuditLogger(cfg.AuditLogger)
 	}
 	proxyHandler := proxy.NewHandler(cfg.DocumentService)
 
@@ -272,6 +286,15 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		maxSizeMB = 50 // Default: 50 MB
 	}
 	storageHandler := apiStorage.NewHandler(cfg.StorageProvider, cfg.DocumentService, maxSizeMB)
+	if cfg.StorageQuotaChecker != nil && cfg.TenantProvider != nil {
+		storageHandler.WithStorageQuotaChecker(cfg.StorageQuotaChecker, func(ctx context.Context) string {
+			tid, err := cfg.TenantProvider.CurrentTenant(ctx)
+			if err != nil {
+				return ""
+			}
+			return tid.String()
+		})
+	}
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -400,7 +423,19 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				cfg.TenantProvider,
 			)
 		}
+		if cfg.AuditLogger != nil {
+			adminHandler.WithAuditLogger(cfg.AuditLogger)
+		}
 		webhooksHandler := apiAdmin.NewWebhooksHandler(cfg.WebhookService)
+		if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
+			webhooksHandler.WithQuotaRecorder(
+				&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
+				cfg.TenantProvider,
+			)
+		}
+		if cfg.AuditLogger != nil {
+			webhooksHandler.WithAuditLogger(cfg.AuditLogger)
+		}
 
 		r.Route("/admin", func(r chi.Router) {
 			// Document management

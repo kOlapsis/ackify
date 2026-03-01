@@ -47,6 +47,7 @@ type Handler struct {
 	webhookPublisher webhookPublisher
 	quotaRecorder    QuotaRecorder
 	tenantProvider   providers.TenantProvider
+	auditLogger      shared.AuditLogger
 }
 
 // NewHandler constructor to inject admin service and webhook publisher
@@ -58,6 +59,12 @@ func NewHandler(signatureService signatureService, adminSvc adminService, publis
 func (h *Handler) WithQuotaRecorder(recorder QuotaRecorder, tp providers.TenantProvider) *Handler {
 	h.quotaRecorder = recorder
 	h.tenantProvider = tp
+	return h
+}
+
+// WithAuditLogger sets the audit logger for signature events.
+func (h *Handler) WithAuditLogger(logger shared.AuditLogger) *Handler {
+	h.auditLogger = logger
 	return h
 }
 
@@ -208,6 +215,9 @@ func (h *Handler) HandleCreateSignature(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 	}
+
+	// Audit log
+	shared.EmitAudit(ctx, h.auditLogger, r, h.getTenantID(ctx), "signature.create", "document", req.DocID, map[string]any{"signer_email": user.Email})
 
 	signature, err := h.signatureService.GetSignatureByDocAndUser(ctx, req.DocID, user)
 	if err != nil {
