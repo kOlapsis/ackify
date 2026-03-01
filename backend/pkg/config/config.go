@@ -54,6 +54,11 @@ type AuthConfig struct {
 	MagicLinkEnabled        bool
 	MagicLinkRateLimitEmail int // Max requests per email per window (default: 3)
 	MagicLinkRateLimitIP    int // Max requests per IP per window (default: 10)
+
+	// DisableAuthMethodCheck disables cross-category auth method validation in the
+	// config service. Set by extension modes (e.g. SaaS) that manage auth at a
+	// higher layer and do not store auth method state in the CE config tables.
+	DisableAuthMethodCheck bool
 }
 
 type AppConfig struct {

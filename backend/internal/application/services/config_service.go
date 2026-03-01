@@ -82,7 +82,7 @@ func (s *ConfigService) Initialize(ctx context.Context) error {
 		}
 	}
 
-	return s.reload(ctx)
+	return s.Reload(ctx)
 }
 
 // GetConfig returns the current config (lock-free read)
@@ -127,7 +127,7 @@ func (s *ConfigService) UpdateSection(ctx context.Context, category models.Confi
 	}
 
 	// Hot-reload
-	return s.reload(ctx)
+	return s.Reload(ctx)
 }
 
 // ResetFromENV resets config to current ENV values
@@ -143,7 +143,7 @@ func (s *ConfigService) ResetFromENV(ctx context.Context, updatedBy string) erro
 	}
 
 	// Reload
-	return s.reload(ctx)
+	return s.Reload(ctx)
 }
 
 // Subscribe registers a channel to receive config updates
@@ -510,8 +510,10 @@ func (s *ConfigService) removeSecretsFromJSON(category models.ConfigCategory, co
 	return result
 }
 
-// reload fetches all config from DB and notifies subscribers
-func (s *ConfigService) reload(ctx context.Context) error {
+// Reload fetches all config from DB and notifies subscribers.
+// In multi-tenant mode, the caller should ensure the context has the correct
+// tenant RLS transaction so the right config is loaded.
+func (s *ConfigService) Reload(ctx context.Context) error {
 	configs, err := s.repo.GetAll(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load configs: %w", err)
@@ -709,8 +711,14 @@ func (s *ConfigService) applyUpdateToConfig(cfg *models.MutableConfig, category 
 	return ErrInvalidCategory
 }
 
-// validateCrossCategory validates cross-category rules
+// validateCrossCategory validates cross-category rules.
+// When DisableAuthMethodCheck is set in the env config (e.g. by an extension like
+// SaaS that manages auth at a higher layer), auth method checks are skipped entirely.
 func (s *ConfigService) validateCrossCategory(cfg *models.MutableConfig) error {
+	if s.envConfig.Auth.DisableAuthMethodCheck {
+		return nil
+	}
+
 	// At least one auth method must be enabled
 	if !cfg.HasAtLeastOneAuthMethod() {
 		return ErrNoAuthMethod
