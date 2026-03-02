@@ -6,6 +6,7 @@ package providers
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/btouchard/ackify-ce/backend/pkg/types"
 	"github.com/google/uuid"
@@ -74,6 +75,25 @@ type AuthProvider interface {
 
 	// CreateReminderAuthToken creates an auth token for reminder emails.
 	CreateReminderAuthToken(ctx context.Context, email, docID string) (string, error)
+
+	// === Document Share with OTP ===
+
+	// CreateDocumentShareLink creates a magic link protected by OTP for sharing a document.
+	// Returns the link URL and the cleartext OTP (shown once to the admin).
+	CreateDocumentShareLink(ctx context.Context, email, docID string, validityDays int, sharedBy, locale string) (linkURL string, otp string, err error)
+
+	// ValidateDocumentShareToken checks if a token is a valid, active document_share token.
+	// This is a read-only check that does NOT verify OTP or modify attempt counters.
+	ValidateDocumentShareToken(ctx context.Context, token string) error
+
+	// VerifyDocumentShareOTP verifies the OTP for a document share token.
+	VerifyDocumentShareOTP(ctx context.Context, token, otp, ip, userAgent string) (*MagicLinkResult, error)
+
+	// RevokeDocumentShare revokes a document share by token ID.
+	RevokeDocumentShare(ctx context.Context, tokenID int64) error
+
+	// ListDocumentShares returns all document shares for a given document.
+	ListDocumentShares(ctx context.Context, docID string) ([]*DocumentShareInfo, error)
 }
 
 // MagicLinkResult represents the result of verifying a magic link.
@@ -81,6 +101,19 @@ type MagicLinkResult struct {
 	Email      string
 	RedirectTo string
 	DocID      *string // Non-nil for reminder auth tokens
+}
+
+// DocumentShareInfo represents info about a document share for the admin listing.
+type DocumentShareInfo struct {
+	ID             int64      `json:"id"`
+	Email          string     `json:"email"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ExpiresAt      time.Time  `json:"expires_at"`
+	OTPAttempts    int        `json:"otp_attempts"`
+	OTPMaxAttempts int        `json:"otp_max_attempts"`
+	RevokedAt      *time.Time `json:"revoked_at,omitempty"`
+	SharedBy       *string    `json:"shared_by,omitempty"`
+	IsActive       bool       `json:"is_active"`
 }
 
 // Authorizer defines the interface for authorization decisions.

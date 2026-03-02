@@ -1,0 +1,49 @@
+{{define "content"}}
+<h2>{{T "email.document_share.title"}}</h2>
+
+<p>{{T "email.document_share.greeting"}}</p>
+
+<p>{{T "email.document_share.intro" (dict "Organisation" .Organisation "Email" .Data.Email)}}</p>
+
+<p>{{T "email.document_share.instructions"}}</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{.Data.ShareLink}}"
+       style="background-color: #4F46E5;
+              color: white;
+              padding: 14px 40px;
+              text-decoration: none;
+              border-radius: 6px;
+              display: inline-block;
+              font-weight: bold;">
+        {{T "email.document_share.cta_button"}}
+    </a>
+</div>
+
+<div style="background: #DBEAFE; padding: 15px; border-left: 4px solid #3B82F6; border-radius: 4px; margin: 20px 0;">
+    <p style="margin: 0;">
+        🔑 <strong>{{T "email.document_share.otp_notice_title"}}</strong>
+        {{T "email.document_share.otp_notice_text"}}
+    </p>
+</div>
+
+<div style="background: #FEF3C7; padding: 15px; border-left: 4px solid #F59E0B; border-radius: 4px; margin: 20px 0;">
+    <p style="margin: 0;">
+        ⏱️ <strong>{{T "email.document_share.warning_title"}}</strong>
+        {{T "email.document_share.warning_text" (dict "ValidityDays" .Data.ValidityDays)}}
+    </p>
+</div>
+
+<p>{{T "email.document_share.not_requested"}}</p>
+
+<hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+<p style="color: #666; font-size: 0.9em;">
+    {{T "email.document_share.button_not_working"}}<br>
+    <a href="{{.Data.ShareLink}}" style="color: #4F46E5; word-break: break-all;">{{.Data.ShareLink}}</a>
+</p>
+
+<p style="color: #999; font-size: 0.8em;">
+    {{T "email.document_share.footer" (dict "Organisation" .Organisation "BaseURL" .Data.BaseURL)}}
+</p>
+{{end}}

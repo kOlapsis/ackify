@@ -182,6 +182,30 @@ func (m *mockAuthProvider) CreateReminderAuthToken(_ context.Context, _, _ strin
 	return "test-token", nil
 }
 
+// Document Share methods
+func (m *mockAuthProvider) CreateDocumentShareLink(_ context.Context, _, _ string, _ int, _, _ string) (string, string, error) {
+	return "https://example.com/api/v1/auth/document-share/verify?token=test-token", "123456", nil
+}
+
+func (m *mockAuthProvider) ValidateDocumentShareToken(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockAuthProvider) VerifyDocumentShareOTP(_ context.Context, _, _, _, _ string) (*providers.MagicLinkResult, error) {
+	return &providers.MagicLinkResult{
+		Email:      "test@example.com",
+		RedirectTo: "/?doc=test-doc",
+	}, nil
+}
+
+func (m *mockAuthProvider) RevokeDocumentShare(_ context.Context, _ int64) error {
+	return nil
+}
+
+func (m *mockAuthProvider) ListDocumentShares(_ context.Context, _ string) ([]*providers.DocumentShareInfo, error) {
+	return []*providers.DocumentShareInfo{}, nil
+}
+
 // Helper for tests
 func (m *mockAuthProvider) setOIDCEnabled(enabled bool) {
 	m.mu.Lock()

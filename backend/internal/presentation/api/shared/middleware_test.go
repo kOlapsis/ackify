@@ -111,6 +111,21 @@ func (m *mockAuthProvider) VerifyReminderAuthToken(context.Context, string, stri
 func (m *mockAuthProvider) CreateReminderAuthToken(context.Context, string, string) (string, error) {
 	return "", nil
 }
+func (m *mockAuthProvider) CreateDocumentShareLink(ctx context.Context, email, docID string, validityDays int, sharedBy, locale string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthProvider) ValidateDocumentShareToken(ctx context.Context, token string) error {
+	return nil
+}
+func (m *mockAuthProvider) VerifyDocumentShareOTP(ctx context.Context, token, otp, ip, userAgent string) (*providers.MagicLinkResult, error) {
+	return nil, nil
+}
+func (m *mockAuthProvider) ListDocumentShares(ctx context.Context, docID string) ([]*providers.DocumentShareInfo, error) {
+	return nil, nil
+}
+func (m *mockAuthProvider) RevokeDocumentShare(ctx context.Context, tokenID int64) error {
+	return nil
+}
 
 // mockAuthorizer is a test implementation of providers.Authorizer
 type mockAuthorizer struct {

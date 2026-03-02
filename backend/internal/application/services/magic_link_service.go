@@ -6,10 +6,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"math/big"
 	"net/mail"
 	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/email"
 	"github.com/btouchard/ackify-ce/backend/pkg/logger"
@@ -22,6 +25,9 @@ type MagicLinkRepository interface {
 	GetByToken(ctx context.Context, token string) (*models.MagicLinkToken, error)
 	MarkAsUsed(ctx context.Context, token string, ip string, userAgent string) error
 	DeleteExpired(ctx context.Context) (int64, error)
+	IncrementOTPAttempts(ctx context.Context, token string) error
+	RevokeToken(ctx context.Context, tokenID int64) error
+	ListByDocAndPurpose(ctx context.Context, docID string, purpose string) ([]*models.MagicLinkToken, error)
 
 	LogAttempt(ctx context.Context, attempt *models.MagicLinkAuthAttempt) error
 	CountRecentAttempts(ctx context.Context, email string, since time.Time) (int, error)
@@ -405,9 +411,226 @@ func (s *MagicLinkService) CleanupExpiredTokens(ctx context.Context) (int64, err
 	return s.repo.DeleteExpired(ctx)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// CreateDocumentShareLink creates a magic link protected by OTP for sharing a document.
+// Returns the link URL and the cleartext OTP (shown once to the admin).
+func (s *MagicLinkService) CreateDocumentShareLink(
+	ctx context.Context,
+	emailAddr string,
+	docID string,
+	validityDays int,
+	sharedBy string,
+	locale string,
+) (linkURL string, otp string, err error) {
+	// Normaliser l'email
+	emailAddr = strings.ToLower(strings.TrimSpace(emailAddr))
+
+	// Valider le format email
+	if _, err := mail.ParseAddress(emailAddr); err != nil {
+		return "", "", fmt.Errorf("invalid email format")
 	}
-	return b
+
+	if docID == "" {
+		return "", "", fmt.Errorf("document ID is required")
+	}
+
+	// Validate and cap validity
+	if validityDays <= 0 {
+		validityDays = 7 // Default: 7 days
+	}
+	if validityDays > 90 {
+		validityDays = 90 // Max: 90 days
+	}
+
+	// Generate secure token for the URL
+	token, err := s.generateSecureToken()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	// Generate 6-digit OTP
+	otp, err = s.generateOTP()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate OTP: %w", err)
+	}
+
+	// Hash OTP with bcrypt
+	otpHashBytes, err := bcrypt.GenerateFromPassword([]byte(otp), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to hash OTP: %w", err)
+	}
+	otpHash := string(otpHashBytes)
+
+	// Create token in DB
+	magicToken := &models.MagicLinkToken{
+		Token:              token,
+		Email:              emailAddr,
+		ExpiresAt:          time.Now().Add(time.Duration(validityDays) * 24 * time.Hour),
+		RedirectTo:         "/?doc=" + docID,
+		CreatedByIP:        "127.0.0.1", // System-initiated
+		CreatedByUserAgent: "admin-share",
+		Purpose:            "document_share",
+		DocID:              &docID,
+		OTPHash:            &otpHash,
+		OTPAttempts:        0,
+		OTPMaxAttempts:     5,
+		SharedBy:           &sharedBy,
+	}
+
+	if err := s.repo.CreateToken(ctx, magicToken); err != nil {
+		return "", "", fmt.Errorf("failed to create document share token: %w", err)
+	}
+
+	// Build the magic link URL
+	link := fmt.Sprintf("%s/api/v1/auth/document-share/verify?token=%s", s.baseURL, token)
+
+	// Send email to recipient (link only, no OTP)
+	if locale == "" {
+		locale = "en"
+	}
+
+	subject := "A document has been shared with you"
+	if s.i18n != nil {
+		subject = s.i18n.T(locale, "email.document_share.subject")
+	}
+
+	msg := email.Message{
+		To:       []string{emailAddr},
+		Subject:  subject,
+		Template: "document_share",
+		Locale:   locale,
+		Data: map[string]interface{}{
+			"AppName":      s.appName,
+			"Email":        emailAddr,
+			"ShareLink":    link,
+			"ValidityDays": validityDays,
+			"BaseURL":      s.baseURL,
+		},
+	}
+
+	if err := s.emailSender.Send(ctx, msg); err != nil {
+		logger.Logger.Error("Failed to send document share email", "error", err, "email", emailAddr)
+		// Don't fail the share creation if email fails — admin has the link
+	}
+
+	logger.Logger.Info("Document share link created",
+		"email", emailAddr,
+		"doc_id", docID,
+		"shared_by", sharedBy,
+		"validity_days", validityDays)
+
+	return link, otp, nil
+}
+
+// ValidateDocumentShareToken checks if a document share token exists and is valid.
+// This is a read-only check: it does NOT verify OTP or modify attempt counters.
+func (s *MagicLinkService) ValidateDocumentShareToken(ctx context.Context, token string) error {
+	magicToken, err := s.repo.GetByToken(ctx, token)
+	if err != nil {
+		return fmt.Errorf("invalid token")
+	}
+
+	if magicToken.Purpose != "document_share" {
+		return fmt.Errorf("invalid token type")
+	}
+
+	if !magicToken.IsValid() {
+		if magicToken.RevokedAt != nil {
+			return fmt.Errorf("share has been revoked")
+		}
+		if magicToken.IsOTPLocked() {
+			return fmt.Errorf("share is locked")
+		}
+		return fmt.Errorf("share has expired")
+	}
+
+	return nil
+}
+
+// VerifyDocumentShareOTP verifies the OTP for a document share token.
+// Unlike standard magic links, document_share tokens are multi-use.
+func (s *MagicLinkService) VerifyDocumentShareOTP(
+	ctx context.Context,
+	token string,
+	otpInput string,
+	ip string,
+	userAgent string,
+) (*models.MagicLinkToken, error) {
+	// Get the token
+	magicToken, err := s.repo.GetByToken(ctx, token)
+	if err != nil {
+		if len(token) > 8 {
+			logger.Logger.Warn("Document share token not found", "token_prefix", token[:8])
+		} else {
+			logger.Logger.Warn("Document share token not found", "token_prefix", token)
+		}
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	// Check purpose
+	if magicToken.Purpose != "document_share" {
+		logger.Logger.Warn("Token is not a document_share token", "purpose", magicToken.Purpose)
+		return nil, fmt.Errorf("invalid token type")
+	}
+
+	// Check validity (expiry, revocation, OTP lockout)
+	if !magicToken.IsValid() {
+		if magicToken.RevokedAt != nil {
+			return nil, fmt.Errorf("share has been revoked")
+		}
+		if magicToken.IsOTPLocked() {
+			return nil, fmt.Errorf("too many failed attempts, share is locked")
+		}
+		return nil, fmt.Errorf("share has expired")
+	}
+
+	// Verify OTP
+	if magicToken.OTPHash == nil {
+		return nil, fmt.Errorf("token has no OTP configured")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*magicToken.OTPHash), []byte(otpInput)); err != nil {
+		// Wrong OTP — increment attempts
+		if incErr := s.repo.IncrementOTPAttempts(ctx, token); incErr != nil {
+			logger.Logger.Error("Failed to increment OTP attempts", "error", incErr)
+		}
+		remaining := magicToken.OTPMaxAttempts - magicToken.OTPAttempts - 1
+		logger.Logger.Warn("Document share OTP verification failed",
+			"email", magicToken.Email,
+			"attempts_remaining", remaining,
+			"ip", ip)
+		return nil, fmt.Errorf("invalid access code")
+	}
+
+	// OTP is correct — do NOT mark as used (multi-use token)
+	logger.Logger.Info("Document share OTP verified successfully",
+		"email", magicToken.Email,
+		"doc_id", magicToken.DocID,
+		"ip", ip)
+
+	return magicToken, nil
+}
+
+// RevokeDocumentShare revokes a document share by token ID
+func (s *MagicLinkService) RevokeDocumentShare(ctx context.Context, tokenID int64) error {
+	if err := s.repo.RevokeToken(ctx, tokenID); err != nil {
+		return fmt.Errorf("failed to revoke share: %w", err)
+	}
+
+	logger.Logger.Info("Document share revoked", "token_id", tokenID)
+	return nil
+}
+
+// ListDocumentShares returns all document_share tokens for a given document
+func (s *MagicLinkService) ListDocumentShares(ctx context.Context, docID string) ([]*models.MagicLinkToken, error) {
+	return s.repo.ListByDocAndPurpose(ctx, docID, "document_share")
+}
+
+// generateOTP generates a cryptographically secure 6-digit OTP
+func (s *MagicLinkService) generateOTP() (string, error) {
+	max := big.NewInt(1000000) // 0-999999
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }
