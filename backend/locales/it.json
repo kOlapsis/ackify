@@ -14,7 +14,6 @@
   "email.reminder.contact": "Se hai domande, contatta il tuo amministratore.",
   "email.reminder.regards": "Cordiali saluti,",
   "email.reminder.team": "Il team {{.Organisation}}",
-
   "email.magic_link.subject": "Il tuo link di accesso",
   "email.magic_link.title": "🔐 Il tuo link di accesso",
   "email.magic_link.greeting": "Ciao,",
@@ -25,5 +24,18 @@
   "email.magic_link.warning_text": "Questo link scade tra {{.ExpiresIn}} minuti e può essere utilizzato solo una volta.",
   "email.magic_link.not_requested": "Se non hai richiesto questo link, puoi ignorare questa email in tutta sicurezza.",
   "email.magic_link.button_not_working": "Se il pulsante non funziona, copia e incolla questo link nel tuo browser:",
-  "email.magic_link.footer": "Questa email è stata inviata da {{.Organisation}} – {{.BaseURL}}"
+  "email.magic_link.footer": "Questa email è stata inviata da {{.Organisation}} – {{.BaseURL}}",
+  "email.document_share.subject": "Un documento è stato condiviso con te",
+  "email.document_share.title": "📄 Un documento è stato condiviso con te",
+  "email.document_share.greeting": "Ciao,",
+  "email.document_share.intro": "Qualcuno di {{.Organisation}} ha condiviso un documento con te ({{.Email}}).",
+  "email.document_share.instructions": "Fai clic sul pulsante qui sotto per accedere al documento:",
+  "email.document_share.cta_button": "📄 Visualizza Documento",
+  "email.document_share.otp_notice_title": "Codice di accesso richiesto:",
+  "email.document_share.otp_notice_text": "Avrai bisogno di un codice di accesso per visualizzare questo documento. La persona che l'ha condiviso te lo fornirà separatamente.",
+  "email.document_share.warning_title": "Attenzione:",
+  "email.document_share.warning_text": "Questo link scade tra {{.ValidityDays}} giorni.",
+  "email.document_share.not_requested": "Se non stavi aspettando questo documento, puoi ignorare questa email in tutta sicurezza.",
+  "email.document_share.button_not_working": "Se il pulsante non funziona, copia e incolla questo link nel tuo browser:",
+  "email.document_share.footer": "Questa email è stata inviata da {{.Organisation}} – {{.BaseURL}}"
 }

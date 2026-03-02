@@ -14,7 +14,6 @@
   "email.reminder.contact": "Bei Fragen wenden Sie sich bitte an Ihren Administrator.",
   "email.reminder.regards": "Mit freundlichen Grüßen,",
   "email.reminder.team": "Das {{.Organisation}}-Team",
-
   "email.magic_link.subject": "Ihr Anmeldelink",
   "email.magic_link.title": "🔐 Ihr Anmeldelink",
   "email.magic_link.greeting": "Hallo,",
@@ -25,5 +24,18 @@
   "email.magic_link.warning_text": "Dieser Link läuft in {{.ExpiresIn}} Minuten ab und kann nur einmal verwendet werden.",
   "email.magic_link.not_requested": "Wenn Sie diesen Link nicht angefordert haben, können Sie diese E-Mail sicher ignorieren.",
   "email.magic_link.button_not_working": "Wenn die Schaltfläche nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
-  "email.magic_link.footer": "Diese E-Mail wurde von {{.Organisation}} gesendet – {{.BaseURL}}"
+  "email.magic_link.footer": "Diese E-Mail wurde von {{.Organisation}} gesendet – {{.BaseURL}}",
+  "email.document_share.subject": "Ein Dokument wurde mit Ihnen geteilt",
+  "email.document_share.title": "📄 Ein Dokument wurde mit Ihnen geteilt",
+  "email.document_share.greeting": "Hallo,",
+  "email.document_share.intro": "Jemand von {{.Organisation}} hat ein Dokument mit Ihnen geteilt ({{.Email}}).",
+  "email.document_share.instructions": "Klicken Sie auf die Schaltfläche unten, um auf das Dokument zuzugreifen:",
+  "email.document_share.cta_button": "📄 Dokument ansehen",
+  "email.document_share.otp_notice_title": "Zugangscode erforderlich:",
+  "email.document_share.otp_notice_text": "Sie benötigen einen Zugangscode, um dieses Dokument anzuzeigen.",
+  "email.document_share.warning_title": "Achtung:",
+  "email.document_share.warning_text": "Dieser Link läuft in {{.ValidityDays}} Tagen ab.",
+  "email.document_share.not_requested": "Wenn Sie dieses Dokument nicht erwartet haben, können Sie diese E-Mail sicher ignorieren.",
+  "email.document_share.button_not_working": "Wenn die Schaltfläche nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
+  "email.document_share.footer": "Diese E-Mail wurde von {{.Organisation}} gesendet – {{.BaseURL}}"
 }

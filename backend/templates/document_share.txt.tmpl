@@ -1,0 +1,20 @@
+{{define "content"}}
+{{T "email.document_share.title"}}
+
+{{T "email.document_share.greeting"}}
+
+{{T "email.document_share.intro" (dict "Organisation" .Organisation "Email" .Data.Email)}}
+
+{{T "email.document_share.instructions"}}
+
+{{.Data.ShareLink}}
+
+{{T "email.document_share.otp_notice_title"}} {{T "email.document_share.otp_notice_text"}}
+
+{{T "email.document_share.warning_title"}} {{T "email.document_share.warning_text" (dict "ValidityDays" .Data.ValidityDays)}}
+
+{{T "email.document_share.not_requested"}}
+
+---
+{{T "email.document_share.footer" (dict "Organisation" .Organisation "BaseURL" .Data.BaseURL)}}
+{{end}}

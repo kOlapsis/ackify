@@ -34,6 +34,8 @@ type magicLinkService interface {
 	RequestMagicLink(ctx context.Context, email, redirectTo, ip, userAgent, locale string) error
 	VerifyMagicLink(ctx context.Context, token, ip, userAgent string) (*models.MagicLinkToken, error)
 	VerifyReminderAuthToken(ctx context.Context, token, ip, userAgent string) (*models.MagicLinkToken, error)
+	CreateDocumentShareLink(ctx context.Context, email, docID string, validityDays int, sharedBy, locale string) (string, string, error)
+	VerifyDocumentShareOTP(ctx context.Context, token, otp, ip, userAgent string) (*models.MagicLinkToken, error)
 }
 
 // signatureService defines signature operations
@@ -234,6 +236,10 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				r.Get("/magic-link/verify", authHandler.HandleVerifyMagicLink)
 				r.Get("/reminder-link/verify", authHandler.HandleVerifyReminderAuthLink)
 
+				// Document Share endpoints (OTP-protected magic links)
+				r.Get("/document-share/verify", authHandler.HandleDocumentSharePage)
+				r.Post("/document-share/verify-otp", authHandler.HandleVerifyDocumentShareOTP)
+
 				// Logout endpoint (always available)
 				r.Get("/logout", authHandler.HandleLogout)
 			})
@@ -325,6 +331,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		// Initialize admin handler
 		adminHandler := apiAdmin.NewHandler(cfg.AdminService, cfg.ReminderService, cfg.SignatureService, cfg.BaseURL, importMaxSigners)
 		webhooksHandler := apiAdmin.NewWebhooksHandler(cfg.WebhookService)
+		shareHandler := apiAdmin.NewShareHandler(cfg.AuthProvider)
 
 		r.Route("/admin", func(r chi.Router) {
 			// Document management
@@ -351,6 +358,11 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				// Reminder management
 				r.Post("/{docId}/reminders", adminHandler.HandleSendReminders)
 				r.Get("/{docId}/reminders", adminHandler.HandleGetReminderHistory)
+
+				// Document sharing (magic link + OTP)
+				r.Post("/{docId}/share", shareHandler.HandleCreateDocumentShare)
+				r.Get("/{docId}/shares", shareHandler.HandleListDocumentShares)
+				r.Delete("/{docId}/share/{tokenId}", shareHandler.HandleRevokeDocumentShare)
 			})
 
 			// Webhooks management

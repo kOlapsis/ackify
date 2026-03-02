@@ -31,6 +31,11 @@ type magicLinkService interface {
 	VerifyMagicLink(ctx context.Context, token, ip, userAgent string) (*models.MagicLinkToken, error)
 	VerifyReminderAuthToken(ctx context.Context, token, ip, userAgent string) (*models.MagicLinkToken, error)
 	CreateReminderAuthToken(ctx context.Context, email, docID string) (string, error)
+	CreateDocumentShareLink(ctx context.Context, email, docID string, validityDays int, sharedBy, locale string) (string, string, error)
+	ValidateDocumentShareToken(ctx context.Context, token string) error
+	VerifyDocumentShareOTP(ctx context.Context, token, otp, ip, userAgent string) (*models.MagicLinkToken, error)
+	RevokeDocumentShare(ctx context.Context, tokenID int64) error
+	ListDocumentShares(ctx context.Context, docID string) ([]*models.MagicLinkToken, error)
 }
 
 // ProviderConfig holds a configuration for creating a Provider.
@@ -328,6 +333,74 @@ func (p *Provider) CreateReminderAuthToken(ctx context.Context, email, docID str
 		return "", fmt.Errorf("MagicLink service not configured")
 	}
 	return p.magicLinkService.CreateReminderAuthToken(ctx, email, docID)
+}
+
+// === Document Share with OTP ===
+
+func (p *Provider) CreateDocumentShareLink(ctx context.Context, email, docID string, validityDays int, sharedBy, locale string) (string, string, error) {
+	if p.magicLinkService == nil {
+		return "", "", fmt.Errorf("MagicLink service not configured")
+	}
+	return p.magicLinkService.CreateDocumentShareLink(ctx, email, docID, validityDays, sharedBy, locale)
+}
+
+func (p *Provider) ValidateDocumentShareToken(ctx context.Context, token string) error {
+	if p.magicLinkService == nil {
+		return fmt.Errorf("MagicLink service not configured")
+	}
+	return p.magicLinkService.ValidateDocumentShareToken(ctx, token)
+}
+
+func (p *Provider) VerifyDocumentShareOTP(ctx context.Context, token, otp, ip, userAgent string) (*providers.MagicLinkResult, error) {
+	if p.magicLinkService == nil {
+		return nil, fmt.Errorf("MagicLink service not configured")
+	}
+
+	result, err := p.magicLinkService.VerifyDocumentShareOTP(ctx, token, otp, ip, userAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	return &providers.MagicLinkResult{
+		Email:      result.Email,
+		RedirectTo: result.RedirectTo,
+		DocID:      result.DocID,
+	}, nil
+}
+
+func (p *Provider) RevokeDocumentShare(ctx context.Context, tokenID int64) error {
+	if p.magicLinkService == nil {
+		return fmt.Errorf("MagicLink service not configured")
+	}
+	return p.magicLinkService.RevokeDocumentShare(ctx, tokenID)
+}
+
+func (p *Provider) ListDocumentShares(ctx context.Context, docID string) ([]*providers.DocumentShareInfo, error) {
+	if p.magicLinkService == nil {
+		return nil, fmt.Errorf("MagicLink service not configured")
+	}
+
+	tokens, err := p.magicLinkService.ListDocumentShares(ctx, docID)
+	if err != nil {
+		return nil, err
+	}
+
+	var shares []*providers.DocumentShareInfo
+	for _, t := range tokens {
+		shares = append(shares, &providers.DocumentShareInfo{
+			ID:             t.ID,
+			Email:          t.Email,
+			CreatedAt:      t.CreatedAt,
+			ExpiresAt:      t.ExpiresAt,
+			OTPAttempts:    t.OTPAttempts,
+			OTPMaxAttempts: t.OTPMaxAttempts,
+			RevokedAt:      t.RevokedAt,
+			SharedBy:       t.SharedBy,
+			IsActive:       t.IsValid(),
+		})
+	}
+
+	return shares, nil
 }
 
 // === Internal helpers ===

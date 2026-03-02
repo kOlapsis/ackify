@@ -244,7 +244,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if this is a content endpoint that needs to be embeddable
 		path := r.URL.Path
-		isContentEndpoint := strings.Contains(path, "/content") || strings.Contains(path, "/proxy")
+		isContentEndpoint := strings.Contains(path, "/content") || strings.Contains(path, "/proxy") || strings.Contains(path, "/document-share/verify")
 
 		// Security headers
 		w.Header().Set("X-Content-Type-Options", "nosniff")

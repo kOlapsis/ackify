@@ -25,5 +25,19 @@
   "email.magic_link.warning_text": "This link expires in {{.ExpiresIn}} minutes and can only be used once.",
   "email.magic_link.not_requested": "If you did not request this link, you can safely ignore this email.",
   "email.magic_link.button_not_working": "If the button doesn't work, copy and paste this link into your browser:",
-  "email.magic_link.footer": "This email was sent by {{.Organisation}} – {{.BaseURL}}"
+  "email.magic_link.footer": "This email was sent by {{.Organisation}} – {{.BaseURL}}",
+
+  "email.document_share.subject": "A document has been shared with you",
+  "email.document_share.title": "📄 A document has been shared with you",
+  "email.document_share.greeting": "Hello,",
+  "email.document_share.intro": "Someone from {{.Organisation}} has shared a document with you ({{.Email}}).",
+  "email.document_share.instructions": "Click the button below to access the document:",
+  "email.document_share.cta_button": "📄 View Document",
+  "email.document_share.otp_notice_title": "Access code required:",
+  "email.document_share.otp_notice_text": "You will need an access code to view this document. The person who shared it with you will provide it separately.",
+  "email.document_share.warning_title": "Attention:",
+  "email.document_share.warning_text": "This link expires in {{.ValidityDays}} days.",
+  "email.document_share.not_requested": "If you were not expecting this document, you can safely ignore this email.",
+  "email.document_share.button_not_working": "If the button doesn't work, copy and paste this link into your browser:",
+  "email.document_share.footer": "This email was sent by {{.Organisation}} – {{.BaseURL}}"
 }
