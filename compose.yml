@@ -3,7 +3,7 @@ name: ackify-ce
 
 services:
   ackify-migrate:
-    image: btouchard/ackify-ce
+    image: kolapsis/ackify
     container_name: ackify-ce-migrate
     environment:
       ACKIFY_LOG_LEVEL: "${ACKIFY_LOG_LEVEL}"
@@ -19,7 +19,7 @@ services:
     restart: "no"
 
   ackify-ce:
-    image: btouchard/ackify-ce
+    image: kolapsis/ackify
     container_name: ackify-ce
     restart: unless-stopped
     environment:

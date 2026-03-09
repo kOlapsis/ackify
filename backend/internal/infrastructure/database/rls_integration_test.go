@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/tenant"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/tenant"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // isSuperuser checks if the current database connection is a superuser.

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/config"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // fakeConfigRepository is a mock implementation of configRepository
@@ -292,7 +292,7 @@ func TestConfigService_UpdateSection_MagicLinkRequiresSMTP(t *testing.T) {
 		Config:    emptySMTP,
 		UpdatedAt: time.Now(),
 	}
-	_ = svc.reload(ctx)
+	_ = svc.Reload(ctx)
 
 	// Try to enable MagicLink without SMTP
 	input := json.RawMessage(`{"enabled": true}`)

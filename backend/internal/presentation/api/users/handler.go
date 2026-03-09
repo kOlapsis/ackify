@@ -4,8 +4,8 @@ package users
 import (
 	"net/http"
 
-	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/internal/presentation/api/shared"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // Handler handles user API requests

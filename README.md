@@ -4,8 +4,8 @@
 
 Secure document reading validation with cryptographic signatures and irrefutable proof.
 
-[![Build](https://github.com/btouchard/ackify-ce/actions/workflows/ci.yml/badge.svg)](https://github.com/btouchard/ackify-ce/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/btouchard/ackify-ce/branch/main/graph/badge.svg)](https://codecov.io/gh/btouchard/ackify-ce)
+[![Build](https://github.com/kolapsis/ackify/actions/workflows/ci.yml/badge.svg)](https://github.com/kolapsis/ackify/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kolapsis/ackify/branch/main/graph/badge.svg)](https://codecov.io/gh/kolapsis/ackify)
 [![Security](https://img.shields.io/badge/crypto-Ed25519-blue.svg)](https://en.wikipedia.org/wiki/EdDSA)
 [![Go](https://img.shields.io/badge/go-1.24.5-blue.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
@@ -56,7 +56,7 @@ Prove that collaborators have read and acknowledged important documents with **E
 
 ```bash
 # Download and run installation script
-bash <(curl -fsSL https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/kolapsis/ackify/main/install/install.sh)
 
 # Navigate to installation directory
 cd ackify-ce
@@ -83,7 +83,7 @@ open http://localhost:8080
 
 ```bash
 # Clone repository
-git clone https://github.com/btouchard/ackify-ce.git
+git clone https://github.com/kolapsis/ackify.git
 cd ackify-ce
 
 # Configure
@@ -254,8 +254,8 @@ See [docs/en/architecture.md](docs/en/architecture.md) for full security details
 
 ## 🤝 Support
 
-- **Issues**: [GitHub Issues](https://github.com/btouchard/ackify-ce/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/btouchard/ackify-ce/discussions)
+- **Issues**: [GitHub Issues](https://github.com/kolapsis/ackify/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/kolapsis/ackify/discussions)
 - **Email**: contact@ackify.eu
 
 ---

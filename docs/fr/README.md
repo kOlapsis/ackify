@@ -36,5 +36,5 @@ Documentation complète pour Ackify - Proof of Read avec signatures cryptographi
 
 ## Support
 
-- [GitHub Issues](https://github.com/btouchard/ackify-ce/issues) - Bugs et demandes de fonctionnalités
-- [GitHub Discussions](https://github.com/btouchard/ackify-ce/discussions) - Questions et discussions
+- [GitHub Issues](https://github.com/kolapsis/ackify/issues) - Bugs et demandes de fonctionnalités
+- [GitHub Discussions](https://github.com/kolapsis/ackify/discussions) - Questions et discussions

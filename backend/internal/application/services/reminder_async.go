@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // emailQueueRepository defines minimal interface for email queue operations

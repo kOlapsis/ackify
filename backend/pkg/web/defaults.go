@@ -4,7 +4,7 @@ package web
 import (
 	"context"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 // NoLimitQuotaEnforcer is a quota enforcer that imposes no limits.

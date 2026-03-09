@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/config"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // mockDocExpectedSignerRepo is a minimal mock for docExpectedSignerRepository

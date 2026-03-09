@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/dbctx"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/dbctx"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // Joined view of a delivery with webhook send data

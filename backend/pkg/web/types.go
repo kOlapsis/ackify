@@ -4,7 +4,7 @@ package web
 import (
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/types"
+	"github.com/kolapsis/ackify/backend/pkg/types"
 )
 
 // User is an alias for the unified user type.

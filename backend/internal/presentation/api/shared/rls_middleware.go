@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/dbctx"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/dbctx"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // RLSMiddleware provides Row Level Security context for database queries.

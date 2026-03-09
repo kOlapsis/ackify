@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
-	"github.com/btouchard/ackify-ce/backend/pkg/types"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

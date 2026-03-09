@@ -9,7 +9,7 @@ This directory contains the installation scripts and configuration files for Ack
 The interactive installation script will guide you through the entire configuration process:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/kolapsis/ackify/main/install/install.sh)
 ```
 
 The script will prompt you for:
@@ -83,8 +83,8 @@ If you prefer to configure manually:
 1. **Download configuration files:**
    ```bash
    mkdir ackify-ce && cd ackify-ce
-   curl -fsSL https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/compose.yml -o compose.yml
-   curl -fsSL https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/.env.example -o .env
+   curl -fsSL https://raw.githubusercontent.com/kolapsis/ackify/main/install/compose.yml -o compose.yml
+   curl -fsSL https://raw.githubusercontent.com/kolapsis/ackify/main/install/.env.example -o .env
    ```
 
 2. **Generate secrets:**
@@ -345,5 +345,5 @@ docker compose up -d
 
 ## Support
 
-- Documentation: https://github.com/btouchard/ackify-ce
-- Issues: https://github.com/btouchard/ackify-ce/issues
+- Documentation: https://github.com/kolapsis/ackify
+- Issues: https://github.com/kolapsis/ackify/issues

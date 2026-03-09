@@ -22,7 +22,7 @@ const { t } = useI18n()
         <!-- Links & Copyright -->
         <div class="flex flex-wrap items-center justify-center gap-4 text-sm sm:flex-nowrap">
           <a
-            href="https://github.com/btouchard/ackify-ce"
+            href="https://github.com/kolapsis/ackify"
             target="_blank"
             rel="noopener noreferrer"
             class="inline-flex items-center gap-1.5 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"

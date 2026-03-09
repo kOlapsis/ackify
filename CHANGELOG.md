@@ -611,14 +611,14 @@ For users upgrading from v1.1.x to v1.2.0:
 - NULL UserName handling in database operations
 - Proper string conversion for UserName field
 
-[1.2.8]: https://github.com/btouchard/ackify-ce/compare/v1.2.6...v1.2.8
-[1.2.6]: https://github.com/btouchard/ackify-ce/compare/v1.2.5...v1.2.6
-[1.2.5]: https://github.com/btouchard/ackify-ce/compare/v1.2.4...v1.2.5
-[1.2.4]: https://github.com/btouchard/ackify-ce/compare/v1.2.3...v1.2.4
-[1.2.3]: https://github.com/btouchard/ackify-ce/compare/v1.2.1...v1.2.3
-[1.2.1]: https://github.com/btouchard/ackify-ce/compare/v1.2.0...v1.2.1
-[1.2.0]: https://github.com/btouchard/ackify-ce/compare/v1.1.3...v1.2.0
-[1.1.3]: https://github.com/btouchard/ackify-ce/compare/v1.1.2...v1.1.3
-[1.1.2]: https://github.com/btouchard/ackify-ce/compare/v1.1.1...v1.1.2
-[1.1.1]: https://github.com/btouchard/ackify-ce/compare/v1.1.0...v1.1.1
-[1.1.0]: https://github.com/btouchard/ackify-ce/releases/tag/v1.1.0
+[1.2.8]: https://github.com/kolapsis/ackify/compare/v1.2.6...v1.2.8
+[1.2.6]: https://github.com/kolapsis/ackify/compare/v1.2.5...v1.2.6
+[1.2.5]: https://github.com/kolapsis/ackify/compare/v1.2.4...v1.2.5
+[1.2.4]: https://github.com/kolapsis/ackify/compare/v1.2.3...v1.2.4
+[1.2.3]: https://github.com/kolapsis/ackify/compare/v1.2.1...v1.2.3
+[1.2.1]: https://github.com/kolapsis/ackify/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/kolapsis/ackify/compare/v1.1.3...v1.2.0
+[1.1.3]: https://github.com/kolapsis/ackify/compare/v1.1.2...v1.1.3
+[1.1.2]: https://github.com/kolapsis/ackify/compare/v1.1.1...v1.1.2
+[1.1.1]: https://github.com/kolapsis/ackify/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/kolapsis/ackify/releases/tag/v1.1.0

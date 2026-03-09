@@ -2,7 +2,7 @@ name: ackify-ce
 
 services:
   ackify-migrate:
-    image: btouchard/ackify-ce
+    image: kolapsis/ackify
     container_name: ackify-migrate
     environment:
       ACKIFY_DB_DSN: "postgres://postgres:testpassword@ackify-db:5432/ackify_test?sslmode=disable"
@@ -20,7 +20,7 @@ services:
       args:
         VERSION: "v0.0.0-dev"
         CYPRESS_COVERAGE: "true"
-    image: btouchard/ackify-ce
+    image: kolapsis/ackify
     container_name: ackify-ce
     restart: unless-stopped
     environment:

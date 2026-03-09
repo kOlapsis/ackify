@@ -10,10 +10,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/internal/presentation/api/shared"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

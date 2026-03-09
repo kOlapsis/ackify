@@ -65,7 +65,7 @@ ARG VERSION="dev"
 LABEL maintainer="Benjamin TOUCHARD"
 LABEL version="${VERSION}"
 LABEL description="Ackify - Document signature validation platform"
-LABEL org.opencontainers.image.source="https://github.com/btouchard/ackify-ce"
+LABEL org.opencontainers.image.source="https://github.com/kolapsis/ackify"
 LABEL org.opencontainers.image.description="Professional solution for validating and tracking document reading"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
 

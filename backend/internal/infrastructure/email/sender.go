@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
 	mail "github.com/go-mail/mail/v2"
+	"github.com/kolapsis/ackify/backend/pkg/config"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 type Sender interface {

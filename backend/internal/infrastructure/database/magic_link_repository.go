@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/btouchard/ackify-ce/backend/internal/application/services"
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/dbctx"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/internal/application/services"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/dbctx"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 type magicLinkRepo struct {

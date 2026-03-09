@@ -16,7 +16,7 @@ Guide pour contribuer et développer sur Ackify.
 
 ```bash
 # Clone
-git clone https://github.com/btouchard/ackify-ce.git
+git clone https://github.com/kolapsis/ackify.git
 cd ackify-ce
 
 # Copier .env
@@ -509,5 +509,5 @@ npm run type-check
 
 ## Support
 
-- [GitHub Issues](https://github.com/btouchard/ackify-ce/issues)
-- [GitHub Discussions](https://github.com/btouchard/ackify-ce/discussions)
+- [GitHub Issues](https://github.com/kolapsis/ackify/issues)
+- [GitHub Discussions](https://github.com/kolapsis/ackify/discussions)

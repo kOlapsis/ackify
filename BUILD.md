@@ -25,7 +25,7 @@ The built Vue 3 SPA is embedded directly into the Go binary via the `//go:embed 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/btouchard/ackify-ce.git
+git clone https://github.com/kolapsis/ackify.git
 cd ackify-ce
 ```
 

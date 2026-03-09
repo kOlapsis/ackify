@@ -11,12 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/btouchard/ackify-ce/backend/internal/application/services"
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/database"
-	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/admin"
-	"github.com/btouchard/ackify-ce/backend/pkg/crypto"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
 	"github.com/go-chi/chi/v5"
+	"github.com/kolapsis/ackify/backend/internal/application/services"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/database"
+	"github.com/kolapsis/ackify/backend/internal/presentation/api/admin"
+	"github.com/kolapsis/ackify/backend/pkg/crypto"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 func setupTestDB(t *testing.T) *database.TestDB {

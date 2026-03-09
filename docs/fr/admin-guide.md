@@ -642,7 +642,7 @@ SELECT * FROM email_queue WHERE status != 'sent' ORDER BY created_at DESC;
 ```
 
 **Rapporter problèmes:**
-- GitHub: https://github.com/btouchard/ackify-ce/issues
+- GitHub: https://github.com/kolapsis/ackify/issues
 - Inclure logs et messages erreur
 - Décrire comportement attendu vs réel
 

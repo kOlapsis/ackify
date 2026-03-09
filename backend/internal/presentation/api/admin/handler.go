@@ -10,13 +10,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/btouchard/ackify-ce/backend/internal/application/services"
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/i18n"
-	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
 	"github.com/go-chi/chi/v5"
+	"github.com/kolapsis/ackify/backend/internal/application/services"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/i18n"
+	"github.com/kolapsis/ackify/backend/internal/presentation/api/shared"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // QuotaRecorder tracks quota usage for documents, reminders and signers.

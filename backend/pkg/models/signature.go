@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/services"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/pkg/services"
 )
 
 type Signature struct {

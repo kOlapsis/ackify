@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // setupDocumentsTable is no longer needed - migrations handle schema creation

@@ -2,7 +2,7 @@
 
 Complete documentation for Ackify - Proof of Read with cryptographic signatures.
 
-🇫🇷 **[Version Française](../fr/)**
+🇫🇷 **[Version Française](../fr)**
 
 ## Quick Start
 
@@ -33,10 +33,10 @@ Complete documentation for Ackify - Proof of Read with cryptographic signatures.
 
 ## Integrations
 
-- **[Google Docs](../integrations/google-doc/)** - Google Workspace integration
+- **[Google Docs](../integrations/google-doc)** - Google Workspace integration
 - More integrations coming...
 
 ## Support
 
-- [GitHub Issues](https://github.com/btouchard/ackify-ce/issues) - Bugs and feature requests
-- [GitHub Discussions](https://github.com/btouchard/ackify-ce/discussions) - Questions and discussions
+- [GitHub Issues](https://github.com/kolapsis/ackify/issues) - Bugs and feature requests
+- [GitHub Discussions](https://github.com/kolapsis/ackify/discussions) - Questions and discussions

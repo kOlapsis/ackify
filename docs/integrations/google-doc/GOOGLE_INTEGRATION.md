@@ -284,7 +284,7 @@ Le même principe s'applique à d'autres plateformes :
 
 ## 📞 Support
 
-- **Documentation** : [Ackify GitHub](https://github.com/btouchard/ackify-ce)
+- **Documentation** : [Ackify GitHub](https://github.com/kolapsis/ackify)
 - **API** : `GET /api/v1/documents/{docId}/signatures` et `POST /api/v1/signatures`
 - **Embed** : Vue SPA gère les embeds via `/?doc=<id>` avec méta tags Open Graph pour l'unfurling automatique
 - **Widget** : Utiliser iframe avec `/?doc=<id>` (voir fonction `showEmbedCode()` ci-dessus)

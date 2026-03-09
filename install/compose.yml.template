@@ -3,7 +3,7 @@ name: ackify-ce
 
 services:
   ackify-migrate:
-    image: btouchard/ackify-ce:latest
+    image: kolapsis/ackify:latest
     container_name: ackify-migrate
     environment:
       ACKIFY_DB_DSN: "postgres://postgres:${POSTGRES_PASSWORD}@ackify-db:5432/ackify?sslmode=disable"
@@ -18,7 +18,7 @@ services:
     restart: "no"
 
   ackify-ce:
-    image: btouchard/ackify-ce:latest
+    image: kolapsis/ackify:latest
     container_name: ackify-ce
     restart: unless-stopped
     environment:

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/email"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/email"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // MagicLinkRepository définit les opérations sur les tokens Magic Link

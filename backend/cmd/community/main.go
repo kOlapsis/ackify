@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/database"
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/tenant"
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/web"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/database"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/tenant"
+	"github.com/kolapsis/ackify/backend/pkg/config"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/web"
 )
 
 // Build-time variables set via ldflags

@@ -5,8 +5,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // ConfigProvider provides access to general configuration.

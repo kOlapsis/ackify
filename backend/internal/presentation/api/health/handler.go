@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/presentation/api/shared"
+	"github.com/kolapsis/ackify/backend/internal/presentation/api/shared"
 )
 
 // Handler handles health check requests

@@ -13,8 +13,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // SignatureRepository defines minimal signature operations for meta tags

@@ -11,9 +11,9 @@ import (
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/crypto"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/crypto"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // SessionService manages user sessions independently of authentication method

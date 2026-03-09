@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 // SecureHeaders enforces baseline security headers (CSP, XFO, etc.)

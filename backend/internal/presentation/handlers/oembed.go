@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 // OEmbedResponse represents the oEmbed JSON response format

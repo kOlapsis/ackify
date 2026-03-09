@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 type LocalProvider struct {

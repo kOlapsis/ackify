@@ -10,7 +10,7 @@ import (
 	"strings"
 	txtTemplate "text/template"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/i18n"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/i18n"
 )
 
 type Renderer struct {

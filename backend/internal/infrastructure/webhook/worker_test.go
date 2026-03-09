@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/internal/infrastructure/database"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/internal/infrastructure/database"
 )
 
 // mockTenantProvider for testing

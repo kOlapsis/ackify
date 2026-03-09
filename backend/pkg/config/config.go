@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
 	"github.com/gorilla/securecookie"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
 )
 
 type Config struct {

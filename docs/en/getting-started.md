@@ -13,7 +13,7 @@ Installation and configuration guide for Ackify with Docker Compose.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/btouchard/ackify-ce.git
+git clone https://github.com/kolapsis/ackify.git
 cd ackify-ce
 ```
 

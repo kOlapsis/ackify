@@ -4,7 +4,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
+	"github.com/kolapsis/ackify/backend/pkg/config"
 )
 
 func NewProvider(cfg config.StorageConfig) (Provider, error) {

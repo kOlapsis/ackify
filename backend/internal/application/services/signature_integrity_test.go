@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/config"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/config"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 // mockSignatureRepository for testing

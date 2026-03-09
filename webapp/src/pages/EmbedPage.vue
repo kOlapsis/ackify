@@ -101,7 +101,7 @@
       <!-- Footer branding -->
       <div class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700 text-center">
         <a
-          href="https://github.com/btouchard/ackify-ce"
+          href="https://github.com/kolapsis/ackify"
           target="_blank"
           class="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 transition-colors"
         >

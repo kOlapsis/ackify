@@ -14,12 +14,12 @@ import (
 	"github.com/gorilla/securecookie"
 	"golang.org/x/oauth2"
 
-	infraAuth "github.com/btouchard/ackify-ce/backend/internal/infrastructure/auth"
-	"github.com/btouchard/ackify-ce/backend/pkg/crypto"
-	"github.com/btouchard/ackify-ce/backend/pkg/logger"
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
-	"github.com/btouchard/ackify-ce/backend/pkg/types"
+	infraAuth "github.com/kolapsis/ackify/backend/internal/infrastructure/auth"
+	"github.com/kolapsis/ackify/backend/pkg/crypto"
+	"github.com/kolapsis/ackify/backend/pkg/logger"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/pkg/types"
 )
 
 type configProvider interface {

@@ -5,8 +5,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
-	"github.com/btouchard/ackify-ce/backend/pkg/providers"
+	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // Common errors for capability providers.

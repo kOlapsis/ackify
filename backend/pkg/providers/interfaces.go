@@ -7,8 +7,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/types"
 	"github.com/google/uuid"
+	"github.com/kolapsis/ackify/backend/pkg/types"
 )
 
 // Common errors for capability providers.

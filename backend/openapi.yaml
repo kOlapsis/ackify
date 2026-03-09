@@ -14,7 +14,7 @@ info:
   version: 1.0.0
   contact:
     name: Ackify Support
-    url: https://github.com/btouchard/ackify-ce
+    url: https://github.com/kolapsis/ackify
   license:
     name: AGPL-3.0-or-later
     url: https://www.gnu.org/licenses/agpl-3.0.html

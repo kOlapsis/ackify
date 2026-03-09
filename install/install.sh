@@ -326,7 +326,7 @@ if [ "$UPDATE_MODE" = true ] && [ -f "compose.yml" ]; then
     print_header "📦 Checking Configuration Files"
     echo ""
     if prompt_yes_no "Update compose.yml to latest version?" "y"; then
-        curl -fsSL "https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/compose.yml.template" -o compose.yml
+        curl -fsSL "https://raw.githubusercontent.com/kolapsis/ackify/main/install/compose.yml.template" -o compose.yml
         print_success "compose.yml template downloaded"
 
         # Apply region processing based on Traefik choice
@@ -347,7 +347,7 @@ else
     print_header "📦 Downloading Configuration Files"
     echo ""
 
-    curl -fsSL "https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/compose.yml.template" -o compose.yml
+    curl -fsSL "https://raw.githubusercontent.com/kolapsis/ackify/main/install/compose.yml.template" -o compose.yml
     print_success "compose.yml template downloaded"
 
     # Apply region processing based on Traefik choice
@@ -362,7 +362,7 @@ else
     fi
     clean_all_markers "compose.yml"
 
-    curl -fsSL https://raw.githubusercontent.com/btouchard/ackify-ce/main/install/.env.example -o .env.example
+    curl -fsSL https://raw.githubusercontent.com/kolapsis/ackify/main/install/.env.example -o .env.example
     print_success ".env.example downloaded"
 fi
 echo ""

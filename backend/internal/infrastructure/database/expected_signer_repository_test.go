@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/btouchard/ackify-ce/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
 func TestExpectedSignerRepository_AddExpected(t *testing.T) {
