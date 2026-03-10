@@ -59,6 +59,7 @@ type documentService interface {
 	ListByCreatedBy(ctx context.Context, createdBy string, limit, offset int) ([]*models.Document, error)
 	SearchByCreatedBy(ctx context.Context, createdBy, query string, limit, offset int) ([]*models.Document, error)
 	CountByCreatedBy(ctx context.Context, createdBy, searchQuery string) (int, error)
+	GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error)
 	FindPendingDocumentsForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
 }
 
@@ -87,6 +88,7 @@ type adminService interface {
 	AddExpectedSigners(ctx context.Context, docID string, contacts []models.ContactInfo, addedBy string) error
 	RemoveExpectedSigner(ctx context.Context, docID, email string) error
 	GetSignerStats(ctx context.Context, docID string) (*models.DocCompletionStats, error)
+	GetAggregateDocumentStats(ctx context.Context) (pending, completed int, err error)
 }
 
 // webhookService defines webhook management operations

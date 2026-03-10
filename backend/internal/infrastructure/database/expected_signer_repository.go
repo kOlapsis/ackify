@@ -282,6 +282,46 @@ func (r *ExpectedSignerRepository) FindPendingForEmail(ctx context.Context, emai
 	return docs, nil
 }
 
+// GetAggregateDocumentStats returns the count of pending and completed documents across all documents.
+// A document is "completed" if it has expected signers and all have signed.
+// A document is "pending" if it has expected signers and not all have signed.
+// If createdBy is non-empty, filters to documents created by that user.
+func (r *ExpectedSignerRepository) GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error) {
+	var query string
+	var args []interface{}
+
+	baseQuery := `
+		SELECT
+			COUNT(*) FILTER (WHERE signed_count < expected_count) as pending_count,
+			COUNT(*) FILTER (WHERE signed_count >= expected_count) as completed_count
+		FROM (
+			SELECT
+				es.doc_id,
+				COUNT(*) as expected_count,
+				COUNT(s.id) as signed_count
+			FROM expected_signers es
+			JOIN documents d ON es.doc_id = d.doc_id AND es.tenant_id = d.tenant_id
+			LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
+			WHERE d.deleted_at IS NULL%s
+			GROUP BY es.doc_id
+		) sub
+	`
+
+	if createdBy != "" {
+		query = fmt.Sprintf(baseQuery, " AND d.created_by = $1")
+		args = append(args, createdBy)
+	} else {
+		query = fmt.Sprintf(baseQuery, "")
+	}
+
+	err = dbctx.GetQuerier(ctx, r.db).QueryRowContext(ctx, query, args...).Scan(&pending, &completed)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get aggregate document stats: %w", err)
+	}
+
+	return pending, completed, nil
+}
+
 // GetStats calculates signature completion metrics including percentage progress for a document
 // RLS policy automatically filters by tenant_id
 func (r *ExpectedSignerRepository) GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error) {

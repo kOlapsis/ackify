@@ -39,6 +39,7 @@ type documentRepository interface {
 type docExpectedSignerRepository interface {
 	ListByDocID(ctx context.Context, docID string) ([]*models.ExpectedSigner, error)
 	GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error)
+	GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error)
 	FindPendingForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
 }
 
@@ -627,6 +628,14 @@ func (s *DocumentService) GetExpectedSignerStats(ctx context.Context, docID stri
 		return nil, fmt.Errorf("expected signer repository not configured")
 	}
 	return s.expectedSignerRepo.GetStats(ctx, docID)
+}
+
+// GetAggregateDocumentStats returns pending and completed document counts.
+func (s *DocumentService) GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error) {
+	if s.expectedSignerRepo == nil {
+		return 0, 0, fmt.Errorf("expected signer repository not configured")
+	}
+	return s.expectedSignerRepo.GetAggregateDocumentStats(ctx, createdBy)
 }
 
 // ListExpectedSigners retrieves all expected signers for a document

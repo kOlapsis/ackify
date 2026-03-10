@@ -115,6 +115,10 @@ func (m *mockAdminService) GetSignerStats(ctx context.Context, docID string) (*m
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockAdminService) GetAggregateDocumentStats(_ context.Context) (int, int, error) {
+	return 0, 0, nil
+}
+
 type mockReminderService struct {
 	sendRemindersFunc      func(ctx context.Context, docID, sentBy string, specificEmails []string, docURL string, locale string) (*models.ReminderSendResult, error)
 	getReminderHistoryFunc func(ctx context.Context, docID string) ([]*models.ReminderLog, error)

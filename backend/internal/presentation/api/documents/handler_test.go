@@ -172,6 +172,10 @@ func (m *mockDocumentService) FindPendingDocumentsForEmail(_ context.Context, _ 
 	return nil, nil
 }
 
+func (m *mockDocumentService) GetAggregateDocumentStats(_ context.Context, _ string) (int, int, error) {
+	return 0, 0, nil
+}
+
 // Mock signature service
 type mockSignatureService struct {
 	getDocumentSignaturesFunc func(ctx context.Context, docID string) ([]*models.Signature, error)

@@ -28,6 +28,10 @@ func (m *mockDocExpectedSignerRepo) FindPendingForEmail(_ context.Context, _ str
 	return nil, nil
 }
 
+func (m *mockDocExpectedSignerRepo) GetAggregateDocumentStats(_ context.Context, _ string) (int, int, error) {
+	return 0, 0, nil
+}
+
 // Test automatic checksum computation with valid PDF
 func TestDocumentService_CreateDocument_WithAutomaticChecksum(t *testing.T) {
 	content := "Sample PDF content"

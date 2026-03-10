@@ -43,6 +43,7 @@ type documentService interface {
 	ListByCreatedBy(ctx context.Context, createdBy string, limit, offset int) ([]*models.Document, error)
 	SearchByCreatedBy(ctx context.Context, createdBy, query string, limit, offset int) ([]*models.Document, error)
 	CountByCreatedBy(ctx context.Context, createdBy, searchQuery string) (int, error)
+	GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error)
 	FindPendingDocumentsForEmail(ctx context.Context, email string) ([]*models.PendingDocument, error)
 }
 
@@ -831,7 +832,24 @@ func (h *Handler) HandleListMyDocuments(w http.ResponseWriter, r *http.Request) 
 		documents = append(documents, dto)
 	}
 
-	shared.WritePaginatedJSON(w, documents, pagination.Page, pagination.PageSize, totalCount)
+	totalPages := (totalCount + pagination.PageSize - 1) / pagination.PageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	meta := map[string]interface{}{
+		"page":       pagination.Page,
+		"limit":      pagination.PageSize,
+		"total":      totalCount,
+		"totalPages": totalPages,
+	}
+
+	if pendingDocs, completedDocs, err := h.documentService.GetAggregateDocumentStats(ctx, user.Email); err == nil {
+		meta["pendingDocuments"] = pendingDocs
+		meta["completedDocuments"] = completedDocs
+	}
+
+	shared.WriteJSONWithMeta(w, http.StatusOK, documents, meta)
 }
 
 // PendingDocumentDTO represents a document awaiting confirmation by the current user

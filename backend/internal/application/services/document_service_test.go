@@ -359,6 +359,10 @@ func (m *mockDocExpectedSignerRepoTest) FindPendingForEmail(_ context.Context, _
 	return nil, nil
 }
 
+func (m *mockDocExpectedSignerRepoTest) GetAggregateDocumentStats(_ context.Context, _ string) (int, int, error) {
+	return 0, 0, nil
+}
+
 // mockDocumentRepository is a mock implementation for testing
 type mockDocumentRepository struct {
 	createFunc          func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error)

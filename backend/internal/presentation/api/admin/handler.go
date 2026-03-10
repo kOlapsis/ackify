@@ -41,6 +41,7 @@ type adminService interface {
 	AddExpectedSigners(ctx context.Context, docID string, contacts []models.ContactInfo, addedBy string) error
 	RemoveExpectedSigner(ctx context.Context, docID, email string) error
 	GetSignerStats(ctx context.Context, docID string) (*models.DocCompletionStats, error)
+	GetAggregateDocumentStats(ctx context.Context) (pending, completed int, err error)
 }
 
 // reminderService defines the interface for reminder operations
@@ -212,6 +213,11 @@ func (h *Handler) HandleListDocuments(w http.ResponseWriter, r *http.Request) {
 
 	if searchQuery != "" {
 		meta["search"] = searchQuery
+	}
+
+	if pendingDocs, completedDocs, err := h.adminService.GetAggregateDocumentStats(ctx); err == nil {
+		meta["pendingDocuments"] = pendingDocs
+		meta["completedDocuments"] = completedDocs
 	}
 
 	shared.WriteJSONWithMeta(w, http.StatusOK, response, meta)

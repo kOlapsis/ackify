@@ -56,17 +56,8 @@ const totalPages = computed(() => Math.ceil(totalDocsCount.value / perPage.value
 
 // Stats
 const totalDocuments = computed(() => totalDocsCount.value)
-const pendingConfirmations = computed(() =>
-  documents.value.reduce((sum, d) => {
-    if (d.expectedSignerCount > 0 && d.signatureCount < d.expectedSignerCount) {
-      return sum + (d.expectedSignerCount - d.signatureCount)
-    }
-    return sum
-  }, 0)
-)
-const completedDocuments = computed(() =>
-  documents.value.filter(d => d.expectedSignerCount > 0 && d.signatureCount >= d.expectedSignerCount).length
-)
+const pendingDocuments = ref(0)
+const completedDocuments = ref(0)
 
 // Check if user can access this page
 const canAccess = computed(() => {
@@ -96,6 +87,8 @@ async function loadDocuments(isInitialLoad = false) {
 
     documents.value = response.data
     totalDocsCount.value = response.meta.total
+    pendingDocuments.value = (response.meta as any).pendingDocuments ?? 0
+    completedDocuments.value = (response.meta as any).completedDocuments ?? 0
   } catch (err) {
     error.value = extractError(err)
     console.error('Failed to load documents:', err)
@@ -286,7 +279,7 @@ onMounted(async () => {
           </div>
           <div class="flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
             <Clock :size="18" />
-            <span class="text-xl font-bold">{{ pendingConfirmations }}</span>
+            <span class="text-xl font-bold">{{ pendingDocuments }}</span>
             <span class="text-xs whitespace-nowrap">{{ t('myDocuments.stats.pending') }}</span>
           </div>
           <div class="flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">
@@ -319,7 +312,7 @@ onMounted(async () => {
               </div>
               <div>
                 <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('myDocuments.stats.pendingConfirmations') }}</p>
-                <p class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ pendingConfirmations }}</p>
+                <p class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ pendingDocuments }}</p>
               </div>
             </div>
           </div>

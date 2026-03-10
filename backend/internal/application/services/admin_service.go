@@ -24,6 +24,7 @@ type adminSignerRepository interface {
 	AddExpected(ctx context.Context, docID string, contacts []models.ContactInfo, addedBy string) error
 	Remove(ctx context.Context, docID, email string) error
 	GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error)
+	GetAggregateDocumentStats(ctx context.Context, createdBy string) (pending, completed int, err error)
 }
 
 // AdminService handles all admin-specific operations on documents and signers
@@ -84,4 +85,8 @@ func (s *AdminService) RemoveExpectedSigner(ctx context.Context, docID, email st
 
 func (s *AdminService) GetSignerStats(ctx context.Context, docID string) (*models.DocCompletionStats, error) {
 	return s.signerRepo.GetStats(ctx, docID)
+}
+
+func (s *AdminService) GetAggregateDocumentStats(ctx context.Context) (pending, completed int, err error) {
+	return s.signerRepo.GetAggregateDocumentStats(ctx, "")
 }

@@ -54,8 +54,8 @@ const totalPages = computed(() => Math.ceil(totalDocsCount.value / perPage.value
 
 // Stats
 const totalDocuments = computed(() => totalDocsCount.value)
-const pendingDocuments = computed(() => 0) // TODO: API should return this
-const completedDocuments = computed(() => 0) // TODO: API should return this
+const pendingDocuments = ref(0)
+const completedDocuments = ref(0)
 
 // Base URL for share links
 const baseUrl = computed(() => (window as any).ACKIFY_BASE_URL || window.location.origin)
@@ -81,6 +81,8 @@ async function loadDocuments(isInitialLoad = false) {
 
     if (response.meta) {
       totalDocsCount.value = response.meta.total || documents.value.length
+      pendingDocuments.value = response.meta.pendingDocuments ?? 0
+      completedDocuments.value = response.meta.completedDocuments ?? 0
     } else {
       totalDocsCount.value = documents.value.length
     }
@@ -285,7 +287,7 @@ onMounted(() => {
                 <Clock :size="24" class="text-amber-600 dark:text-amber-400" />
               </div>
               <div>
-                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('myDocuments.stats.pendingDocuments') }}</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('myDocuments.stats.pendingConfirmations') }}</p>
                 <p class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ pendingDocuments }}</p>
               </div>
             </div>
