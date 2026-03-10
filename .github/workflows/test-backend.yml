@@ -34,9 +34,9 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v4
       with:
-        go-version: '1.24.5'
+        go-version: '1.26.0'
         cache: true
         cache-dependency-path: go.sum
 
@@ -87,10 +87,10 @@ jobs:
         ACKIFY_OAUTH_CLIENT_SECRET: "test-client-secret"
         ACKIFY_OAUTH_COOKIE_SECRET: "dGVzdC1jb29raWUtc2VjcmV0LXRlc3QtY29va2llLXNlY3JldA=="
       run: |
-        # Unit coverage (race detection already done in previous steps)
-        go test -v -short -covermode=atomic -coverprofile=coverage-unit.out ./backend/...
+        # Unit coverage
+        go test -v -race -short -covermode=atomic -coverprofile=coverage-unit.out ./backend/...
         # Integration coverage
-        go test -v -tags=integration -p 1 -count=1 \
+        go test -v -race -tags=integration -p 1 -count=1 \
           -covermode=atomic -coverprofile=coverage-integration.out \
           ./backend/internal/infrastructure/database/... \
           ./backend/internal/presentation/api/admin
