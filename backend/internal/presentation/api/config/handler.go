@@ -27,11 +27,12 @@ func NewHandler(configProvider configProvider) *Handler {
 
 // Response represents the public configuration exposed to the frontend
 type Response struct {
-	SMTPEnabled        bool `json:"smtpEnabled"`
-	StorageEnabled     bool `json:"storageEnabled"`
-	OnlyAdminCanCreate bool `json:"onlyAdminCanCreate"`
-	OAuthEnabled       bool `json:"oauthEnabled"`
-	MagicLinkEnabled   bool `json:"magicLinkEnabled"`
+	SMTPEnabled        bool   `json:"smtpEnabled"`
+	StorageEnabled     bool   `json:"storageEnabled"`
+	OnlyAdminCanCreate bool   `json:"onlyAdminCanCreate"`
+	OrganisationDomain string `json:"organisationDomain"`
+	OAuthEnabled       bool   `json:"oauthEnabled"`
+	MagicLinkEnabled   bool   `json:"magicLinkEnabled"`
 }
 
 // HandleGetConfig handles GET /api/v1/config
@@ -42,6 +43,7 @@ func (h *Handler) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
 		SMTPEnabled:        cfg.SMTP.IsConfigured(),
 		StorageEnabled:     cfg.Storage.IsEnabled(),
 		OnlyAdminCanCreate: cfg.General.OnlyAdminCanCreate,
+		OrganisationDomain: cfg.General.OrganisationDomain,
 		OAuthEnabled:       cfg.OIDC.Enabled,
 		MagicLinkEnabled:   cfg.MagicLink.Enabled,
 	}

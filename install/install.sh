@@ -245,14 +245,19 @@ if [ "$UPDATE_MODE" = true ] && has_env "ACKIFY_BASE_URL"; then
     # Use existing values in update mode
     APP_BASE_URL=$(get_env "ACKIFY_BASE_URL")
     APP_ORGANISATION=$(get_env "ACKIFY_ORGANISATION")
+    APP_ORGANISATION_DOMAIN=$(get_env "ACKIFY_ORGANISATION_DOMAIN")
     print_header "🌐 Basic Configuration (existing)"
     print_success "Base URL: ${APP_BASE_URL}"
     print_success "Organization: ${APP_ORGANISATION}"
+    if [ -n "$APP_ORGANISATION_DOMAIN" ]; then
+        print_success "Organization Domain: ${APP_ORGANISATION_DOMAIN}"
+    fi
 else
     print_header "🌐 Basic Configuration"
     echo ""
     APP_BASE_URL=$(prompt_input "Application Base URL (e.g., https://ackify.example.com)" "http://localhost:8080")
     APP_ORGANISATION=$(prompt_input "Organization Name" "My Organization")
+    APP_ORGANISATION_DOMAIN=$(prompt_input "Organization Email Domain (e.g., company.com, leave empty to allow all)" "")
     print_success "Base configuration set"
 fi
 
@@ -889,6 +894,7 @@ cat > .env <<EOF
 # ==========================================
 ACKIFY_BASE_URL=${APP_BASE_URL}
 ACKIFY_ORGANISATION=${APP_ORGANISATION}
+ACKIFY_ORGANISATION_DOMAIN=${APP_ORGANISATION_DOMAIN}
 
 # ==========================================
 # Database Configuration

@@ -47,7 +47,7 @@ const activeSection = ref<ConfigSection>('general')
 const showResetConfirm = ref(false)
 
 // Edit states for each section
-const editGeneral = ref<GeneralConfig>({ organisation: '', only_admin_can_create: false, allowed_domains: [] })
+const editGeneral = ref<GeneralConfig>({ organisation: '', organisation_domain: '', only_admin_can_create: false, allowed_domains: [] })
 const allowedDomainsText = ref('')
 const editOIDC = ref<OIDCConfig>({
   enabled: false, provider: '', client_id: '', client_secret: '',
@@ -288,6 +288,22 @@ onMounted(loadSettings)
                 type="text"
                 class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+            <div>
+              <label for="organisation_domain" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {{ t('admin.settings.general.organisationDomain') }}
+              </label>
+              <input
+                id="organisation_domain"
+                data-testid="organisation_domain"
+                v-model="editGeneral.organisation_domain"
+                type="text"
+                :placeholder="t('admin.settings.general.organisationDomainPlaceholder')"
+                class="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {{ t('admin.settings.general.organisationDomainHelper') }}
+              </p>
             </div>
             <div class="flex items-center gap-3">
               <input

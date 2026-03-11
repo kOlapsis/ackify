@@ -57,6 +57,7 @@ type TenantConfig struct {
 type GeneralConfig struct {
 	Organisation       string   `json:"organisation"`
 	OnlyAdminCanCreate bool     `json:"only_admin_can_create"`
+	OrganisationDomain string   `json:"organisation_domain"`
 	AllowedDomains     []string `json:"allowed_domains"`
 }
 

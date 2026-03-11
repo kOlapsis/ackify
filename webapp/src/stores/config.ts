@@ -6,6 +6,7 @@ export interface AppConfig {
   smtpEnabled: boolean
   storageEnabled: boolean
   onlyAdminCanCreate: boolean
+  organisationDomain: string
   oauthEnabled: boolean
   magicLinkEnabled: boolean
 }
@@ -19,6 +20,7 @@ export const useConfigStore = defineStore('config', () => {
   const smtpEnabled = computed(() => config.value?.smtpEnabled || false)
   const storageEnabled = computed(() => config.value?.storageEnabled || false)
   const onlyAdminCanCreate = computed(() => config.value?.onlyAdminCanCreate || false)
+  const organisationDomain = computed(() => config.value?.organisationDomain || '')
   const oauthEnabled = computed(() => config.value?.oauthEnabled || false)
   const magicLinkEnabled = computed(() => config.value?.magicLinkEnabled || false)
 
@@ -58,6 +60,7 @@ export const useConfigStore = defineStore('config', () => {
     smtpEnabled,
     storageEnabled,
     onlyAdminCanCreate,
+    organisationDomain,
     oauthEnabled,
     magicLinkEnabled,
     loadConfig,

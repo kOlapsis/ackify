@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { usePageTitle } from '@/composables/usePageTitle'
 import { useAuthStore } from '@/stores/auth'
-import { useConfigStore } from '@/stores/config'
 import { documentService, type MyDocument, type FindOrCreateDocumentResponse } from '@/services/documents'
 import { extractError } from '@/services/http'
 import DocumentCreateForm from '@/components/DocumentCreateForm.vue'
@@ -28,7 +27,6 @@ import {
 const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
-const configStore = useConfigStore()
 usePageTitle('myDocuments.title')
 
 const documents = ref<MyDocument[]>([])
@@ -59,11 +57,9 @@ const totalDocuments = computed(() => totalDocsCount.value)
 const pendingDocuments = ref(0)
 const completedDocuments = ref(0)
 
-// Check if user can access this page
 const canAccess = computed(() => {
   if (!authStore.isAuthenticated) return false
-  if (authStore.isAdmin) return true
-  return !configStore.onlyAdminCanCreate
+  return authStore.canCreateDocuments
 })
 
 // Base URL for share links

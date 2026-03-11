@@ -67,6 +67,7 @@ type AppConfig struct {
 	SecureCookies      bool
 	AdminEmails        []string
 	OnlyAdminCanCreate bool
+	OrganisationDomain string   // If set, only users with this email domain can create documents
 	AllowedDomains     []string // Whitelist of allowed domains for document URLs (supports wildcards like *.company.com)
 	SMTPEnabled        bool     // True if SMTP is configured (for email reminders)
 	AuthRateLimit      int      // Global auth rate limit (requests per minute), default: 5
@@ -237,6 +238,9 @@ func Load() (*Config, error) {
 
 	// Parse admin-only document creation flag
 	config.App.OnlyAdminCanCreate = getEnvBool("ACKIFY_ONLY_ADMIN_CAN_CREATE", false)
+
+	// Parse organisation domain for document creation restriction
+	config.App.OrganisationDomain = strings.TrimSpace(getEnv("ACKIFY_ORGANISATION_DOMAIN", ""))
 
 	// Parse allowed domains whitelist for document URLs
 	allowedDomainsStr := getEnv("ACKIFY_ALLOWED_DOMAINS", "")

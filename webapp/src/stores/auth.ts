@@ -21,8 +21,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!user.value)
   const isAdmin = computed(() => user.value?.isAdmin ?? false)
 
-  // Check if user can create documents: admin OR only_admin_can_create is false
-  const canCreateDocuments = computed(() => isAdmin.value || !configStore.onlyAdminCanCreate)
+  const canCreateDocuments = computed(() => {
+    if (isAdmin.value) return true
+    if (configStore.onlyAdminCanCreate) return false
+    const domain = configStore.organisationDomain
+    if (domain && user.value?.email) {
+      return user.value.email.toLowerCase().endsWith('@' + domain.toLowerCase())
+    }
+    return true
+  })
 
   async function checkAuth() {
     if (initialized.value) return

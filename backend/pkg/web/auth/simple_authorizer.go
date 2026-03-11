@@ -44,11 +44,18 @@ func (a *SimpleAuthorizer) IsAdmin(_ context.Context, userEmail string) bool {
 
 // CanCreateDocument implements providers.Authorizer.
 func (a *SimpleAuthorizer) CanCreateDocument(ctx context.Context, userEmail string) bool {
-	cfg := a.configProvider.GetConfig()
-	if !cfg.General.OnlyAdminCanCreate {
+	if a.IsAdmin(ctx, userEmail) {
 		return true
 	}
-	return a.IsAdmin(ctx, userEmail)
+	cfg := a.configProvider.GetConfig()
+	if cfg.General.OnlyAdminCanCreate {
+		return false
+	}
+	if domain := cfg.General.OrganisationDomain; domain != "" {
+		normalized := strings.ToLower(strings.TrimSpace(userEmail))
+		return strings.HasSuffix(normalized, "@"+strings.ToLower(domain))
+	}
+	return true
 }
 
 // CanManageDocument implements providers.Authorizer.
