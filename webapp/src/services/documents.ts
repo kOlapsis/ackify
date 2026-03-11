@@ -70,6 +70,7 @@ export interface MyDocument {
   updatedAt: string
   signatureCount: number
   expectedSignerCount: number
+  totalSignatureCount: number
 }
 
 // PaginatedResponse for paginated API responses

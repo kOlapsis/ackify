@@ -216,6 +216,103 @@ func TestExpectedSignerRepository_GetStats(t *testing.T) {
 	if stats.CompletionRate != expectedRate {
 		t.Errorf("expected CompletionRate %.2f, got %.2f", expectedRate, stats.CompletionRate)
 	}
+	if stats.TotalSignatureCount != 2 {
+		t.Errorf("expected TotalSignatureCount 2, got %d", stats.TotalSignatureCount)
+	}
+}
+
+func TestExpectedSignerRepository_GetStats_WithUnexpectedSigners(t *testing.T) {
+	testDB := SetupTestDB(t)
+	sigRepo := NewSignatureRepository(testDB.DB, testDB.TenantProvider)
+	expectedRepo := NewExpectedSignerRepository(testDB.DB, testDB.TenantProvider)
+	factory := NewSignatureFactory()
+	ctx := context.Background()
+
+	clearExpectedSignersTable(t, testDB)
+	testDB.ClearTable(t)
+
+	docID := "doc-stats-unexpected"
+
+	// Add 2 expected signers
+	err := expectedRepo.AddExpected(ctx, docID, emailsToContacts([]string{
+		"expected1@example.com",
+		"expected2@example.com",
+	}), "admin@example.com")
+	if err != nil {
+		t.Fatalf("failed to add expected signers: %v", err)
+	}
+
+	// 1 expected signer signs
+	sig1 := factory.CreateSignatureWithDocAndUser(docID, "sub1", "expected1@example.com")
+	if err := sigRepo.Create(ctx, sig1); err != nil {
+		t.Fatalf("failed to create sig1: %v", err)
+	}
+
+	// 2 unexpected signers sign
+	sig2 := factory.CreateSignatureWithDocAndUser(docID, "sub-extra1", "extra1@example.com")
+	sig3 := factory.CreateSignatureWithDocAndUser(docID, "sub-extra2", "extra2@example.com")
+	if err := sigRepo.Create(ctx, sig2); err != nil {
+		t.Fatalf("failed to create sig2: %v", err)
+	}
+	if err := sigRepo.Create(ctx, sig3); err != nil {
+		t.Fatalf("failed to create sig3: %v", err)
+	}
+
+	stats, err := expectedRepo.GetStats(ctx, docID)
+	if err != nil {
+		t.Fatalf("failed to get stats: %v", err)
+	}
+
+	if stats.ExpectedCount != 2 {
+		t.Errorf("expected ExpectedCount 2, got %d", stats.ExpectedCount)
+	}
+	if stats.SignedCount != 1 {
+		t.Errorf("expected SignedCount 1, got %d", stats.SignedCount)
+	}
+	if stats.TotalSignatureCount != 3 {
+		t.Errorf("expected TotalSignatureCount 3, got %d", stats.TotalSignatureCount)
+	}
+	if stats.PendingCount != 1 {
+		t.Errorf("expected PendingCount 1, got %d", stats.PendingCount)
+	}
+}
+
+func TestExpectedSignerRepository_GetStats_NoExpectedSigners(t *testing.T) {
+	testDB := SetupTestDB(t)
+	sigRepo := NewSignatureRepository(testDB.DB, testDB.TenantProvider)
+	expectedRepo := NewExpectedSignerRepository(testDB.DB, testDB.TenantProvider)
+	factory := NewSignatureFactory()
+	ctx := context.Background()
+
+	clearExpectedSignersTable(t, testDB)
+	testDB.ClearTable(t)
+
+	docID := "doc-stats-no-expected"
+
+	// No expected signers, but 2 signatures exist
+	sig1 := factory.CreateSignatureWithDocAndUser(docID, "sub1", "user1@example.com")
+	sig2 := factory.CreateSignatureWithDocAndUser(docID, "sub2", "user2@example.com")
+	if err := sigRepo.Create(ctx, sig1); err != nil {
+		t.Fatalf("failed to create sig1: %v", err)
+	}
+	if err := sigRepo.Create(ctx, sig2); err != nil {
+		t.Fatalf("failed to create sig2: %v", err)
+	}
+
+	stats, err := expectedRepo.GetStats(ctx, docID)
+	if err != nil {
+		t.Fatalf("failed to get stats: %v", err)
+	}
+
+	if stats.ExpectedCount != 0 {
+		t.Errorf("expected ExpectedCount 0, got %d", stats.ExpectedCount)
+	}
+	if stats.SignedCount != 0 {
+		t.Errorf("expected SignedCount 0, got %d", stats.SignedCount)
+	}
+	if stats.TotalSignatureCount != 2 {
+		t.Errorf("expected TotalSignatureCount 2, got %d", stats.TotalSignatureCount)
+	}
 }
 
 func TestExpectedSignerRepository_Remove(t *testing.T) {

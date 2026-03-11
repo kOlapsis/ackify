@@ -33,11 +33,12 @@ type ExpectedSignerWithStatus struct {
 
 // DocCompletionStats provides completion statistics for a document
 type DocCompletionStats struct {
-	DocID          string  `json:"doc_id"`
-	ExpectedCount  int     `json:"expected_count"`
-	SignedCount    int     `json:"signed_count"`
-	PendingCount   int     `json:"pending_count"`
-	CompletionRate float64 `json:"completion_rate"` // Percentage 0-100
+	DocID               string  `json:"doc_id"`
+	ExpectedCount       int     `json:"expected_count"`
+	SignedCount         int     `json:"signed_count"`
+	PendingCount        int     `json:"pending_count"`
+	CompletionRate      float64 `json:"completion_rate"` // Percentage 0-100
+	TotalSignatureCount int     `json:"total_signature_count"`
 }
 
 // PendingDocument represents a document awaiting confirmation by a specific user

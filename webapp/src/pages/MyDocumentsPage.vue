@@ -185,20 +185,30 @@ function truncateUrl(url: string, maxLength = 40): string {
   return url.substring(0, maxLength) + '...'
 }
 
-function getStatusBadge(doc: MyDocument): { text: string; class: string } {
+function getStatusBadge(doc: MyDocument): { text: string; class: string; extra?: string; extraClass?: string } {
+  const total = doc.totalSignatureCount ?? 0
+
+  // Case 1: No expected signers
   if (doc.expectedSignerCount === 0) {
     return {
-      text: `${doc.signatureCount} ${t('myDocuments.signatureCount', doc.signatureCount)}`,
-      class: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+      text: `${total} ${t('myDocuments.signatureCount', total)}`,
+      class: total > 0
+        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
     }
   }
 
+  // Case 2: Expected signers exist
   const isComplete = doc.signatureCount >= doc.expectedSignerCount
+  const unexpected = total - doc.signatureCount
   return {
     text: `${doc.signatureCount}/${doc.expectedSignerCount}`,
     class: isComplete
       ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
+    // Case 4: Mixed - expected + unexpected signers
+    extra: unexpected > 0 ? `+${unexpected}` : undefined,
+    extraClass: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
   }
 }
 
@@ -396,12 +406,21 @@ onMounted(async () => {
                       </div>
                     </td>
                     <td class="px-4 py-4">
-                      <span
-                        :class="getStatusBadge(doc).class"
-                        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                      >
-                        {{ getStatusBadge(doc).text }}
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <span
+                          :class="getStatusBadge(doc).class"
+                          class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                        >
+                          {{ getStatusBadge(doc).text }}
+                        </span>
+                        <span
+                          v-if="getStatusBadge(doc).extra"
+                          :class="getStatusBadge(doc).extraClass"
+                          class="inline-flex items-center px-1.5 py-1 rounded-full text-xs font-medium"
+                        >
+                          {{ getStatusBadge(doc).extra }}
+                        </span>
+                      </div>
                     </td>
                     <td class="px-4 py-4 text-sm text-slate-500 dark:text-slate-400">
                       {{ formatDate(doc.createdAt) }}
@@ -454,12 +473,21 @@ onMounted(async () => {
                     <h3 class="font-medium text-slate-900 dark:text-slate-100 truncate">{{ doc.title || doc.id }}</h3>
                     <p v-if="doc.url" class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ truncateUrl(doc.url, 30) }}</p>
                   </div>
-                  <span
-                    :class="getStatusBadge(doc).class"
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
-                  >
-                    {{ getStatusBadge(doc).text }}
-                  </span>
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <span
+                      :class="getStatusBadge(doc).class"
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                    >
+                      {{ getStatusBadge(doc).text }}
+                    </span>
+                    <span
+                      v-if="getStatusBadge(doc).extra"
+                      :class="getStatusBadge(doc).extraClass"
+                      class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium"
+                    >
+                      {{ getStatusBadge(doc).extra }}
+                    </span>
+                  </div>
                 </div>
 
                 <!-- Meta Info -->

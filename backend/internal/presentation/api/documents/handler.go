@@ -755,6 +755,7 @@ type MyDocumentDTO struct {
 	UpdatedAt           string `json:"updatedAt"`
 	SignatureCount      int    `json:"signatureCount"`
 	ExpectedSignerCount int    `json:"expectedSignerCount"`
+	TotalSignatureCount int    `json:"totalSignatureCount"`
 }
 
 // HandleListMyDocuments handles GET /api/v1/users/me/documents
@@ -823,10 +824,10 @@ func (h *Handler) HandleListMyDocuments(w http.ResponseWriter, r *http.Request) 
 			UpdatedAt:   doc.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 
-		// Get stats which correctly calculates SignedCount as expected signers who signed
 		if stats, err := h.documentService.GetExpectedSignerStats(ctx, doc.DocID); err == nil {
 			dto.SignatureCount = stats.SignedCount
 			dto.ExpectedSignerCount = stats.ExpectedCount
+			dto.TotalSignatureCount = stats.TotalSignatureCount
 		}
 
 		documents = append(documents, dto)

@@ -327,18 +327,18 @@ func (r *ExpectedSignerRepository) GetAggregateDocumentStats(ctx context.Context
 func (r *ExpectedSignerRepository) GetStats(ctx context.Context, docID string) (*models.DocCompletionStats, error) {
 	query := `
 		SELECT
-			COUNT(*) as expected_count,
-			COUNT(s.id) as signed_count
-		FROM expected_signers es
-		LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
-		WHERE es.doc_id = $1
+			(SELECT COUNT(*) FROM expected_signers WHERE doc_id = $1) as expected_count,
+			(SELECT COUNT(*) FROM expected_signers es
+			 JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
+			 WHERE es.doc_id = $1) as signed_count,
+			(SELECT COUNT(*) FROM signatures WHERE doc_id = $1) as total_signature_count
 	`
 
 	stats := &models.DocCompletionStats{
 		DocID: docID,
 	}
 
-	err := dbctx.GetQuerier(ctx, r.db).QueryRowContext(ctx, query, docID).Scan(&stats.ExpectedCount, &stats.SignedCount)
+	err := dbctx.GetQuerier(ctx, r.db).QueryRowContext(ctx, query, docID).Scan(&stats.ExpectedCount, &stats.SignedCount, &stats.TotalSignatureCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stats: %w", err)
 	}
