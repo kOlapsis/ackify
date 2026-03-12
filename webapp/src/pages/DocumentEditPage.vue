@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePageTitle } from '@/composables/usePageTitle'
 import { useAuthStore } from '@/stores/auth'
@@ -426,6 +426,13 @@ function closeImportCSVModal() {
   csvPreview.value = null
   csvError.value = ''
 }
+
+watch(() => metadataForm.value.readMode, (newMode) => {
+  if (newMode === 'external') {
+    metadataForm.value.requireFullRead = false
+    metadataForm.value.allowDownload = false
+  }
+})
 
 onMounted(async () => {
   if (!authStore.initialized) {

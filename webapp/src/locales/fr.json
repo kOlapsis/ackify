@@ -130,7 +130,9 @@
       "descriptionWithUrl": "Ce document n'est pas accessible directement. Veuillez l'ouvrir via le lien ci-dessous, le lire, puis revenir confirmer votre lecture.",
       "documentUrl": "Adresse du document",
       "openDocument": "Ouvrir le document",
-      "noUrl": "Aucune URL disponible pour ce document"
+      "noUrl": "Aucune URL disponible pour ce document",
+      "localNetworkTitle": "Document sur réseau local",
+      "localNetworkDescription": "Ce document est hébergé sur votre réseau local ou une plateforme dédiée. Veuillez le consulter directement, puis revenir confirmer votre lecture."
     },
     "alreadySigned": {
       "title": "Lecture déjà confirmée",

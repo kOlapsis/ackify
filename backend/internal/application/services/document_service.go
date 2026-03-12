@@ -228,6 +228,16 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 				"doc_id", docID,
 				"checksum", checksumResult.ChecksumHex,
 				"algorithm", checksumResult.Algorithm)
+		} else if input.ReadMode == "integrated" {
+			// URL is inaccessible from the server — force external mode to avoid
+			// a deadlock where requireFullRead blocks signing on an unloadable viewer
+			input.ReadMode = "external"
+			f := false
+			input.RequireFullRead = &f
+			input.AllowDownload = &f
+			logger.Logger.Warn("URL inaccessible from server, forcing external read mode",
+				"doc_id", docID,
+				"url", url)
 		}
 	}
 
@@ -573,7 +583,7 @@ func (s *DocumentService) FindOrCreateDocument(ctx context.Context, ref string, 
 		return doc, true, nil
 	}
 
-	// For URL references, compute checksum before creating
+	// For URL references, check accessibility before creating
 	if refType == ReferenceTypeURL && s.checksumConfig != nil {
 		logger.Logger.Debug("Computing checksum for URL reference", "url", ref)
 		checksumResult := s.computeChecksumForURL(ctx, ref)

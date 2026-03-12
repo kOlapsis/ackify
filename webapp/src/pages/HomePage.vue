@@ -81,10 +81,10 @@ const isIntegratedMode = computed(() => currentDocument.value?.readMode === 'int
 const requiresFullRead = computed(() => currentDocument.value?.requireFullRead ?? false)
 const allowDownload = computed(() => currentDocument.value?.allowDownload ?? false)
 
-// Can confirm: checkbox checked AND (if requireFullRead: must have completed read)
+// Can confirm: checkbox checked AND (if requireFullRead: must have completed read, unless viewer failed)
 const canConfirm = computed(() => {
   if (!certifyChecked.value) return false
-  if (isIntegratedMode.value && requiresFullRead.value && !readComplete.value) return false
+  if (isIntegratedMode.value && requiresFullRead.value && !readComplete.value && !documentLoadFailed.value) return false
   return true
 })
 
@@ -575,12 +575,32 @@ onMounted(async () => {
               <div class="w-16 h-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mx-auto mb-4">
                 <ExternalLink :size="32" class="text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
-                {{ t('sign.external.title') }}
-              </h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto">
-                {{ currentDocument.url ? t('sign.external.descriptionWithUrl') : t('sign.external.description') }}
+
+              <!-- Integrated mode viewer failed — likely local network / inaccessible resource -->
+              <template v-if="documentLoadFailed && isIntegratedMode">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                  {{ t('sign.external.localNetworkTitle') }}
+                </h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
+                  {{ t('sign.external.localNetworkDescription') }}
+                </p>
+              </template>
+
+              <!-- Normal external mode -->
+              <template v-else>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                  {{ t('sign.external.title') }}
+                </h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
+                  {{ currentDocument.url ? t('sign.external.descriptionWithUrl') : t('sign.external.description') }}
+                </p>
+              </template>
+
+              <!-- Document description if available -->
+              <p v-if="currentDocument.description" class="text-sm text-slate-600 dark:text-slate-300 mb-6 max-w-md mx-auto italic">
+                {{ currentDocument.description }}
               </p>
+
               <div v-if="currentDocument.url" class="space-y-4">
                 <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 max-w-lg mx-auto">
                   <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ t('sign.external.documentUrl') }}</p>
@@ -679,8 +699,8 @@ onMounted(async () => {
               <div v-else class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
                 <h3 class="font-semibold text-slate-900 dark:text-slate-100 mb-4">{{ t('sign.confirm.title') }}</h3>
 
-                <!-- Warning if requireFullRead and not completed -->
-                <div v-if="isIntegratedMode && requiresFullRead && !readComplete" class="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <!-- Warning if requireFullRead and not completed (hidden if viewer failed — user can't read in viewer) -->
+                <div v-if="isIntegratedMode && requiresFullRead && !readComplete && !documentLoadFailed" class="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                   <div class="flex items-start gap-2">
                     <AlertTriangle :size="16" class="mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                     <p class="text-sm text-amber-800 dark:text-amber-200">{{ t('sign.confirm.readRequired') }}</p>
