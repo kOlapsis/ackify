@@ -107,6 +107,9 @@ func (s *SMTPSender) Send(ctx context.Context, msg Message) error {
 			InsecureSkipVerify: s.config.InsecureSkipVerify,
 		}
 		d.StartTLSPolicy = mail.MandatoryStartTLS
+	} else {
+		// No TLS requested: disable opportunistic STARTTLS (plain SMTP, e.g. port 25)
+		d.StartTLSPolicy = mail.NoStartTLS
 	}
 
 	d.Timeout = timeout
