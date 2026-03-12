@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kolapsis/ackify/backend/pkg/config"
 	"github.com/kolapsis/ackify/backend/pkg/models"
 )
 
@@ -420,6 +421,143 @@ func (m *mockDocumentRepository) SearchByCreatedBy(_ context.Context, _, _ strin
 
 func (m *mockDocumentRepository) CountByCreatedBy(_ context.Context, _, _ string) (int, error) {
 	return 0, nil
+}
+
+// Test CreateDocument forces external mode when URL is inaccessible
+func TestDocumentService_CreateDocument_ForcesExternalModeForInaccessibleURL(t *testing.T) {
+	t.Parallel()
+
+	var capturedInput models.DocumentInput
+	mockRepo := &mockDocumentRepository{
+		createFunc: func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error) {
+			capturedInput = input
+			return &models.Document{
+				DocID:           docID,
+				Title:           input.Title,
+				URL:             input.URL,
+				ReadMode:        input.ReadMode,
+				AllowDownload:   input.AllowDownload != nil && *input.AllowDownload,
+				RequireFullRead: input.RequireFullRead != nil && *input.RequireFullRead,
+			}, nil
+		},
+	}
+
+	// checksumConfig non-nil triggers checksum computation; the URL won't resolve → nil result
+	checksumCfg := &config.ChecksumConfig{
+		MaxBytes:  1024,
+		TimeoutMs: 100,
+	}
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, checksumCfg)
+
+	trueVal := true
+	req := CreateDocumentRequest{
+		Reference:       "https://192.168.1.100/internal-doc.pdf",
+		ReadMode:        "integrated",
+		RequireFullRead: &trueVal,
+		AllowDownload:   &trueVal,
+	}
+
+	doc, err := service.CreateDocument(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+	if doc == nil {
+		t.Fatal("Expected document, got nil")
+	}
+
+	// ReadMode should be forced to "external"
+	if capturedInput.ReadMode != "external" {
+		t.Errorf("Expected ReadMode %q, got %q", "external", capturedInput.ReadMode)
+	}
+	// RequireFullRead should be forced to false
+	if capturedInput.RequireFullRead == nil || *capturedInput.RequireFullRead != false {
+		t.Error("Expected RequireFullRead to be forced to false")
+	}
+	// AllowDownload should be forced to false
+	if capturedInput.AllowDownload == nil || *capturedInput.AllowDownload != false {
+		t.Error("Expected AllowDownload to be forced to false")
+	}
+}
+
+// Test CreateDocument keeps integrated mode when URL is accessible (no checksum config)
+func TestDocumentService_CreateDocument_KeepsIntegratedModeWithoutChecksumConfig(t *testing.T) {
+	t.Parallel()
+
+	var capturedInput models.DocumentInput
+	mockRepo := &mockDocumentRepository{
+		createFunc: func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error) {
+			capturedInput = input
+			return &models.Document{
+				DocID:    docID,
+				Title:    input.Title,
+				URL:      input.URL,
+				ReadMode: input.ReadMode,
+			}, nil
+		},
+	}
+
+	// nil checksumConfig = no checksum computation = no fallback logic
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, nil)
+
+	trueVal := true
+	req := CreateDocumentRequest{
+		Reference:       "https://example.com/doc.pdf",
+		ReadMode:        "integrated",
+		RequireFullRead: &trueVal,
+	}
+
+	_, err := service.CreateDocument(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+
+	if capturedInput.ReadMode != "integrated" {
+		t.Errorf("Expected ReadMode %q, got %q", "integrated", capturedInput.ReadMode)
+	}
+}
+
+// Test CreateDocument does NOT force external mode for uploaded files (storageKey set)
+func TestDocumentService_CreateDocument_UploadedFileKeepsIntegratedMode(t *testing.T) {
+	t.Parallel()
+
+	var capturedInput models.DocumentInput
+	mockRepo := &mockDocumentRepository{
+		createFunc: func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error) {
+			capturedInput = input
+			return &models.Document{
+				DocID:    docID,
+				Title:    input.Title,
+				ReadMode: input.ReadMode,
+			}, nil
+		},
+	}
+
+	checksumCfg := &config.ChecksumConfig{
+		MaxBytes:  1024,
+		TimeoutMs: 100,
+	}
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, checksumCfg)
+
+	trueVal := true
+	req := CreateDocumentRequest{
+		Reference:       "uploaded-doc",
+		Title:           "My uploaded file",
+		ReadMode:        "integrated",
+		RequireFullRead: &trueVal,
+		StorageKey:      "uploads/abc123.pdf",
+		StorageProvider: "s3",
+		Checksum:        "deadbeef",
+	}
+
+	_, err := service.CreateDocument(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+
+	// StorageKey is set → no URL checksum computation → mode should stay integrated
+	if capturedInput.ReadMode != "integrated" {
+		t.Errorf("Expected ReadMode %q for uploaded file, got %q", "integrated", capturedInput.ReadMode)
+	}
 }
 
 // Test CreateDocument with URL reference
