@@ -10,23 +10,23 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Download backend coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: backend-coverage
         path: coverage/backend
 
     - name: Download frontend coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: frontend-coverage
         path: coverage/frontend
       continue-on-error: true
 
     - name: Download E2E coverage
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: e2e-coverage
         path: coverage/e2e
