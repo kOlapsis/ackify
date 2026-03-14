@@ -194,10 +194,19 @@ func (s *DocumentService) CreateDocument(ctx context.Context, req CreateDocument
 		}
 	}
 
+	readMode := req.ReadMode
+	if readMode == "" {
+		if url != "" || req.StorageKey != "" {
+			readMode = "integrated"
+		} else {
+			readMode = "external"
+		}
+	}
+
 	input := models.DocumentInput{
 		Title:           title,
 		URL:             url,
-		ReadMode:        req.ReadMode,
+		ReadMode:        readMode,
 		AllowDownload:   req.AllowDownload,
 		RequireFullRead: req.RequireFullRead,
 		VerifyChecksum:  req.VerifyChecksum,

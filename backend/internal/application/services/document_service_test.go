@@ -560,6 +560,87 @@ func TestDocumentService_CreateDocument_UploadedFileKeepsIntegratedMode(t *testi
 	}
 }
 
+// Test ReadMode deduction: URL → integrated, then forced to external if inaccessible
+func TestDocumentService_CreateDocument_DeducesIntegratedForURLThenForcesExternal(t *testing.T) {
+	t.Parallel()
+
+	var capturedInput models.DocumentInput
+	mockRepo := &mockDocumentRepository{
+		createFunc: func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error) {
+			capturedInput = input
+			return &models.Document{
+				DocID:           docID,
+				Title:           input.Title,
+				URL:             input.URL,
+				ReadMode:        input.ReadMode,
+				AllowDownload:   input.AllowDownload != nil && *input.AllowDownload,
+				RequireFullRead: input.RequireFullRead != nil && *input.RequireFullRead,
+			}, nil
+		},
+	}
+
+	checksumCfg := &config.ChecksumConfig{
+		MaxBytes:  1024,
+		TimeoutMs: 100,
+	}
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, checksumCfg)
+
+	// No ReadMode set + inaccessible URL → deduced as integrated, then forced to external
+	req := CreateDocumentRequest{
+		Reference: "https://192.168.1.100/internal-doc.pdf",
+	}
+
+	doc, err := service.CreateDocument(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+	if doc == nil {
+		t.Fatal("Expected document, got nil")
+	}
+
+	if capturedInput.ReadMode != "external" {
+		t.Errorf("Expected ReadMode %q, got %q", "external", capturedInput.ReadMode)
+	}
+	if capturedInput.RequireFullRead == nil || *capturedInput.RequireFullRead != false {
+		t.Error("Expected RequireFullRead to be forced to false")
+	}
+	if capturedInput.AllowDownload == nil || *capturedInput.AllowDownload != false {
+		t.Error("Expected AllowDownload to be forced to false")
+	}
+}
+
+// Test ReadMode deduction: no URL, no storage → defaults to external
+func TestDocumentService_CreateDocument_DeducesExternalForSimpleReference(t *testing.T) {
+	t.Parallel()
+
+	var capturedInput models.DocumentInput
+	mockRepo := &mockDocumentRepository{
+		createFunc: func(ctx context.Context, docID string, input models.DocumentInput, createdBy string) (*models.Document, error) {
+			capturedInput = input
+			return &models.Document{
+				DocID:    docID,
+				Title:    input.Title,
+				ReadMode: input.ReadMode,
+			}, nil
+		},
+	}
+
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepoTest{}, nil)
+
+	req := CreateDocumentRequest{
+		Reference: "company-policy-2026",
+	}
+
+	_, err := service.CreateDocument(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+
+	if capturedInput.ReadMode != "external" {
+		t.Errorf("Expected ReadMode %q for simple reference, got %q", "external", capturedInput.ReadMode)
+	}
+}
+
 // Test CreateDocument with URL reference
 func TestDocumentService_CreateDocument_WithURL(t *testing.T) {
 	mockRepo := &mockDocumentRepository{}
