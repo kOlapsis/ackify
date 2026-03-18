@@ -10,8 +10,7 @@
 
 {{T "email.reminder.instructions"}}
 
-{{if .Data.DocURL}}1. {{T "email.reminder.step_view_doc"}} {{.Data.DocURL}}
-2. {{T "email.reminder.step_sign"}} {{.Data.SignURL}}{{else}}1. {{T "email.reminder.step_sign"}} {{.Data.SignURL}}{{end}}
+{{.Data.SignURL}}
 
 {{T "email.reminder.explanation"}}
 
