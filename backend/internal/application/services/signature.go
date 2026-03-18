@@ -396,15 +396,23 @@ func (s *SignatureService) verifyDocumentIntegrity(ctx context.Context, doc *mod
 		"url", doc.URL,
 		"stored_checksum", storedChecksumPreview)
 
-	// Configure checksum computation options
-	opts := checksum.ComputeOptions{
-		MaxBytes:           s.checksumConfig.MaxBytes,
-		TimeoutMs:          s.checksumConfig.TimeoutMs,
-		MaxRedirects:       s.checksumConfig.MaxRedirects,
-		AllowedContentType: s.checksumConfig.AllowedContentType,
-		SkipSSRFCheck:      s.checksumConfig.SkipSSRFCheck,
-		InsecureSkipVerify: s.checksumConfig.InsecureSkipVerify,
+	// Start from defaults so zero-value fields in ChecksumConfig don't silently
+	// break integrity verification (same guard as in computeChecksumForURL).
+	opts := checksum.DefaultOptions()
+	if s.checksumConfig.MaxBytes > 0 {
+		opts.MaxBytes = s.checksumConfig.MaxBytes
 	}
+	if s.checksumConfig.TimeoutMs > 0 {
+		opts.TimeoutMs = s.checksumConfig.TimeoutMs
+	}
+	if s.checksumConfig.MaxRedirects > 0 {
+		opts.MaxRedirects = s.checksumConfig.MaxRedirects
+	}
+	if len(s.checksumConfig.AllowedContentType) > 0 {
+		opts.AllowedContentType = s.checksumConfig.AllowedContentType
+	}
+	opts.SkipSSRFCheck = s.checksumConfig.SkipSSRFCheck
+	opts.InsecureSkipVerify = s.checksumConfig.InsecureSkipVerify
 
 	// Compute current checksum
 	result, err := checksum.ComputeRemoteChecksum(ctx, doc.URL, opts)

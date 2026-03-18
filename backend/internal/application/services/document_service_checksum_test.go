@@ -308,6 +308,44 @@ func TestDocumentService_CreateDocument_NetworkError(t *testing.T) {
 	}
 }
 
+// Test that a zero-value ChecksumConfig (non-nil, all fields at zero) falls back to defaults
+// rather than silently breaking: MaxBytes=0 would reject every file as "too large",
+// AllowedContentType=nil would reject every content type.
+func TestDocumentService_CreateDocument_ZeroValueChecksumConfigUsesDefaults(t *testing.T) {
+	content := []byte("PDF content for zero-value config test")
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	mockRepo := &mockDocumentRepository{}
+	// Only set the test-infrastructure flags; all sizing/content-type fields are zero.
+	// This is exactly what the SaaS does when toCEConfig() omits the Checksum block.
+	zeroConfig := &config.ChecksumConfig{
+		SkipSSRFCheck:      true,
+		InsecureSkipVerify: true,
+	}
+	service := NewDocumentService(mockRepo, &mockDocExpectedSignerRepo{}, zeroConfig)
+
+	ctx := context.Background()
+	doc, err := service.CreateDocument(ctx, CreateDocumentRequest{
+		Reference: server.URL,
+		Title:     "Zero-value config test",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+	if doc.Checksum == "" {
+		t.Error("Expected checksum to be computed with zero-value config (defaults applied), got empty string")
+	}
+	if doc.ChecksumAlgorithm != "SHA-256" {
+		t.Errorf("Expected algorithm SHA-256, got %q", doc.ChecksumAlgorithm)
+	}
+}
+
 // Test CreateDocument without URL (plain reference)
 func TestDocumentService_CreateDocument_PlainReferenceNoChecksum(t *testing.T) {
 	mockRepo := &mockDocumentRepository{}

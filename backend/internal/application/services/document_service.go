@@ -476,14 +476,24 @@ func (s *DocumentService) computeChecksumForURL(ctx context.Context, url string)
 		return nil
 	}
 
-	opts := checksum.ComputeOptions{
-		MaxBytes:           s.checksumConfig.MaxBytes,
-		TimeoutMs:          s.checksumConfig.TimeoutMs,
-		MaxRedirects:       s.checksumConfig.MaxRedirects,
-		AllowedContentType: s.checksumConfig.AllowedContentType,
-		SkipSSRFCheck:      s.checksumConfig.SkipSSRFCheck,
-		InsecureSkipVerify: s.checksumConfig.InsecureSkipVerify,
+	// Start from defaults so zero-value fields in ChecksumConfig don't silently
+	// break computation (e.g. MaxBytes=0 would reject every file as "too large",
+	// AllowedContentType=nil would reject every content type).
+	opts := checksum.DefaultOptions()
+	if s.checksumConfig.MaxBytes > 0 {
+		opts.MaxBytes = s.checksumConfig.MaxBytes
 	}
+	if s.checksumConfig.TimeoutMs > 0 {
+		opts.TimeoutMs = s.checksumConfig.TimeoutMs
+	}
+	if s.checksumConfig.MaxRedirects > 0 {
+		opts.MaxRedirects = s.checksumConfig.MaxRedirects
+	}
+	if len(s.checksumConfig.AllowedContentType) > 0 {
+		opts.AllowedContentType = s.checksumConfig.AllowedContentType
+	}
+	opts.SkipSSRFCheck = s.checksumConfig.SkipSSRFCheck
+	opts.InsecureSkipVerify = s.checksumConfig.InsecureSkipVerify
 
 	result, err := checksum.ComputeRemoteChecksum(ctx, url, opts)
 	if err != nil {
