@@ -322,7 +322,7 @@ func TestHandler_SecurityHeaders(t *testing.T) {
 	h.HandleProxy(rec, req)
 
 	expectedHeaders := map[string]string{
-		"Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+		"Content-Security-Policy": "default-src 'none'; img-src 'self'",
 		"X-Content-Type-Options":  "nosniff",
 		"X-Frame-Options":         "SAMEORIGIN",
 		"Referrer-Policy":         "no-referrer",

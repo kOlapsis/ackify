@@ -347,7 +347,7 @@ func (h *Handler) HandleContent(w http.ResponseWriter, r *http.Request) {
 	// For PDFs, don't set restrictive CSP as the browser's PDF viewer needs full control
 	// For other content types, use restrictive CSP
 	if contentType != "application/pdf" {
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:")
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self' data:")
 	}
 
 	// Set content headers with charset for text-based formats
