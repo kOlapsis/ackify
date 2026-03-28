@@ -164,16 +164,19 @@ func (w *SessionWorker) performCleanup() {
 	if w.db != nil && w.tenants != nil {
 		tenantID, tenantErr := w.tenants.CurrentTenant(ctx)
 		if tenantErr != nil {
-			logger.Logger.Error("Failed to get tenant for session cleanup",
-				"error", tenantErr.Error())
-			return
+			// No tenant in context (background worker in multi-tenant mode).
+			// Fall back to direct cleanup without RLS — safe because this only
+			// deletes expired sessions and runs as the DB owner role.
+			logger.Logger.Debug("No tenant context for session cleanup, using direct cleanup",
+				"reason", tenantErr.Error())
+			deleted, err = w.sessionRepo.DeleteExpired(ctx, w.cleanupAge)
+		} else {
+			err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
+				var cleanupErr error
+				deleted, cleanupErr = w.sessionRepo.DeleteExpired(txCtx, w.cleanupAge)
+				return cleanupErr
+			})
 		}
-
-		err = tenant.WithTenantContext(ctx, w.db, tenantID, func(txCtx context.Context) error {
-			var cleanupErr error
-			deleted, cleanupErr = w.sessionRepo.DeleteExpired(txCtx, w.cleanupAge)
-			return cleanupErr
-		})
 	} else {
 		// No RLS - direct repository access (for tests)
 		deleted, err = w.sessionRepo.DeleteExpired(ctx, w.cleanupAge)
