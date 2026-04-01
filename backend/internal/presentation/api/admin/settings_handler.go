@@ -14,6 +14,7 @@ import (
 
 // configService defines the interface for configuration management
 type configService interface {
+	Reload(ctx context.Context) error
 	GetConfig() *models.MutableConfig
 	UpdateSection(ctx context.Context, category models.ConfigCategory, input json.RawMessage, updatedBy string) error
 	TestSMTP(ctx context.Context, cfg models.SMTPConfig) error
@@ -87,6 +88,10 @@ type StorageResponse struct {
 
 // HandleGetSettings handles GET /api/v1/admin/settings
 func (h *SettingsHandler) HandleGetSettings(w http.ResponseWriter, r *http.Request) {
+	if err := h.configService.Reload(r.Context()); err != nil {
+		shared.WriteInternalError(w)
+		return
+	}
 	cfg := h.configService.GetConfig()
 
 	// Build response with masked secrets

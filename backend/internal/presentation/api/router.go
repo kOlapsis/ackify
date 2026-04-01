@@ -104,6 +104,7 @@ type webhookService interface {
 
 // configService defines configuration management operations
 type configService interface {
+	Reload(ctx context.Context) error
 	GetConfig() *models.MutableConfig
 	UpdateSection(ctx context.Context, category models.ConfigCategory, input json.RawMessage, updatedBy string) error
 	TestSMTP(ctx context.Context, cfg models.SMTPConfig) error
