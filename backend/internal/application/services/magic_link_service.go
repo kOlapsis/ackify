@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/kolapsis/ackify/backend/internal/infrastructure/email"
 	"github.com/kolapsis/ackify/backend/pkg/logger"
 	"github.com/kolapsis/ackify/backend/pkg/models"
+	"github.com/kolapsis/ackify/backend/pkg/providers"
 )
 
 // MagicLinkRepository définit les opérations sur les tokens Magic Link
@@ -43,6 +45,7 @@ type MagicLinkService struct {
 	repo              MagicLinkRepository
 	emailSender       emailSender
 	i18n              i18nTranslator
+	tenantProvider    providers.TenantProvider
 	baseURL           string
 	appName           string
 	allowedDomains    []string // Domaines email autorisés (vide = tous)
@@ -57,6 +60,7 @@ type MagicLinkServiceConfig struct {
 	Repository        MagicLinkRepository
 	EmailSender       emailSender
 	I18n              i18nTranslator
+	TenantProvider    providers.TenantProvider // Optionnel : nil en CE single-tenant, injecté en SaaS
 	BaseURL           string
 	AppName           string
 	AllowedDomains    []string
@@ -91,6 +95,7 @@ func NewMagicLinkService(cfg MagicLinkServiceConfig) *MagicLinkService {
 		repo:              cfg.Repository,
 		emailSender:       cfg.EmailSender,
 		i18n:              cfg.I18n,
+		tenantProvider:    cfg.TenantProvider,
 		baseURL:           cfg.BaseURL,
 		appName:           cfg.AppName,
 		allowedDomains:    cfg.AllowedDomains,
@@ -176,6 +181,7 @@ func (s *MagicLinkService) RequestMagicLink(
 		RedirectTo:         redirectTo,
 		CreatedByIP:        ip,
 		CreatedByUserAgent: userAgent,
+		TenantID:           s.resolveTenantID(ctx),
 	}
 
 	if err := s.repo.CreateToken(ctx, magicToken); err != nil {
@@ -261,6 +267,7 @@ func (s *MagicLinkService) CreateReminderAuthToken(
 		CreatedByUserAgent: "reminder-service",
 		Purpose:            "reminder_auth",
 		DocID:              &docID,
+		TenantID:           s.resolveTenantID(ctx),
 	}
 
 	if err := s.repo.CreateToken(ctx, magicToken); err != nil {
@@ -366,6 +373,18 @@ func (s *MagicLinkService) VerifyReminderAuthToken(
 		"ip", ip)
 
 	return magicToken, nil
+}
+
+func (s *MagicLinkService) resolveTenantID(ctx context.Context) *uuid.UUID {
+	if s.tenantProvider == nil {
+		return nil
+	}
+	tid, err := s.tenantProvider.CurrentTenant(ctx)
+	if err != nil {
+		logger.Logger.Warn("Failed to resolve tenant ID for magic link token", "error", err)
+		return nil
+	}
+	return &tid
 }
 
 // generateSecureToken génère un token cryptographiquement sécurisé

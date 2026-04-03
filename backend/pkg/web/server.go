@@ -433,6 +433,7 @@ func (b *ServerBuilder) initializeMagicLinkService(repos *repositories) {
 		Repository:        repos.magicLink,
 		EmailSender:       b.emailSender,
 		I18n:              b.i18nService,
+		TenantProvider:    b.tenantProvider,
 		BaseURL:           b.cfg.App.BaseURL,
 		AppName:           b.cfg.App.Organisation,
 		RateLimitPerEmail: b.cfg.Auth.MagicLinkRateLimitEmail,
