@@ -81,6 +81,7 @@ type ServerBuilder struct {
 	// Optional overrides
 	baseURLProvider     services.BaseURLProvider
 	storageQuotaChecker StorageQuotaChecker
+	cryptoSigner        CryptoSigner
 
 	// Internal infrastructure (created by Build)
 	signer          *crypto.Ed25519Signer
@@ -159,6 +160,13 @@ func (b *ServerBuilder) WithStorageProvider(p storage.Provider) *ServerBuilder {
 // WithStorageQuotaChecker injects a storage quota checker (optional).
 func (b *ServerBuilder) WithStorageQuotaChecker(checker StorageQuotaChecker) *ServerBuilder {
 	b.storageQuotaChecker = checker
+	return b
+}
+
+// WithCryptoSigner injects a custom cryptographic signer (optional).
+// When set, the builder skips creating the default Ed25519Signer from env.
+func (b *ServerBuilder) WithCryptoSigner(s CryptoSigner) *ServerBuilder {
+	b.cryptoSigner = s
 	return b
 }
 
@@ -272,10 +280,12 @@ func (b *ServerBuilder) setDefaultProviders() {
 func (b *ServerBuilder) initializeInfrastructure() error {
 	var err error
 
-	// Signer
-	b.signer, err = crypto.NewEd25519Signer()
-	if err != nil {
-		return fmt.Errorf("failed to initialize signer: %w", err)
+	// Signer (skip if a custom CryptoSigner was injected)
+	if b.cryptoSigner == nil {
+		b.signer, err = crypto.NewEd25519Signer()
+		if err != nil {
+			return fmt.Errorf("failed to initialize signer: %w", err)
+		}
 	}
 
 	// I18n
@@ -403,7 +413,13 @@ func (b *ServerBuilder) initializeEmailWorker(ctx context.Context, repos *reposi
 }
 
 func (b *ServerBuilder) initializeCoreServices(repos *repositories) {
-	b.signatureService = services.NewSignatureService(repos.signature, repos.document, b.signer)
+	var signer services.CryptoSigner
+	if b.cryptoSigner != nil {
+		signer = b.cryptoSigner
+	} else {
+		signer = b.signer
+	}
+	b.signatureService = services.NewSignatureService(repos.signature, repos.document, signer)
 	b.signatureService.SetChecksumConfig(&b.cfg.Checksum)
 	b.documentService = services.NewDocumentService(repos.document, repos.expectedSigner, &b.cfg.Checksum)
 	if b.configService != nil {

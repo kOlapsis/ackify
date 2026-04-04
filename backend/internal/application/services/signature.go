@@ -27,7 +27,8 @@ type repository interface {
 	Count(ctx context.Context) (int, error)
 }
 
-type cryptoSigner interface {
+// CryptoSigner provides cryptographic signature operations for read confirmations.
+type CryptoSigner interface {
 	CreateSignature(ctx context.Context, docID string, user *models.User, timestamp time.Time, nonce string, docChecksum string) (string, string, error)
 }
 
@@ -35,12 +36,12 @@ type cryptoSigner interface {
 type SignatureService struct {
 	repo           repository
 	docRepo        documentRepository
-	signer         cryptoSigner
+	signer         CryptoSigner
 	checksumConfig *config.ChecksumConfig
 }
 
 // NewSignatureService initializes the signature service with repository and cryptographic signer dependencies
-func NewSignatureService(repo repository, docRepo documentRepository, signer cryptoSigner) *SignatureService {
+func NewSignatureService(repo repository, docRepo documentRepository, signer CryptoSigner) *SignatureService {
 	return &SignatureService{
 		repo:    repo,
 		docRepo: docRepo,

@@ -2,10 +2,17 @@
 package web
 
 import (
+	"context"
 	"time"
 
 	"github.com/kolapsis/ackify/backend/pkg/types"
 )
+
+// CryptoSigner provides cryptographic signature operations for read confirmations.
+// Implement this interface to override the default Ed25519Signer (e.g., per-tenant keys).
+type CryptoSigner interface {
+	CreateSignature(ctx context.Context, docID string, user *User, timestamp time.Time, nonce string, docChecksum string) (payloadHash string, signature string, err error)
+}
 
 // User is an alias for the unified user type.
 // This allows web package to use web.User while sharing the same underlying type.
