@@ -30,3 +30,6 @@ client_secret*.json
 /run-demo.sh
 /telemetry/
 /backup/
+
+# Auto Claude data directory
+.auto-claude/
