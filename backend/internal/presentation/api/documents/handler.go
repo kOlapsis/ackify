@@ -52,6 +52,11 @@ type webhookPublisher interface {
 	Publish(ctx context.Context, eventType string, payload map[string]interface{}) error
 }
 
+// fileDeleter deletes a stored file by its storage key.
+type fileDeleter interface {
+	Delete(ctx context.Context, key string) error
+}
+
 // signatureService defines the interface for signature operations
 type signatureService interface {
 	GetDocumentSignatures(ctx context.Context, docID string) ([]*models.Signature, error)
@@ -78,6 +83,7 @@ type Handler struct {
 	quotaRecorder    QuotaRecorder
 	tenantProvider   providers.TenantProvider
 	auditLogger      shared.AuditLogger
+	storageProvider  fileDeleter
 	baseURL          string
 }
 
@@ -113,6 +119,12 @@ func (h *Handler) WithAuditLogger(logger shared.AuditLogger) *Handler {
 func (h *Handler) WithAdminService(adminService adminService, baseURL string) *Handler {
 	h.adminService = adminService
 	h.baseURL = baseURL
+	return h
+}
+
+// WithStorageProvider sets the storage provider used to delete uploaded files on document deletion.
+func (h *Handler) WithStorageProvider(p fileDeleter) *Handler {
+	h.storageProvider = p
 	return h
 }
 
@@ -1194,6 +1206,16 @@ func (h *Handler) HandleDeleteMyDocument(w http.ResponseWriter, r *http.Request)
 	if err := h.adminService.DeleteDocument(ctx, doc.DocID); err != nil {
 		shared.WriteError(w, http.StatusInternalServerError, shared.ErrCodeInternal, "Failed to delete document", nil)
 		return
+	}
+
+	// Delete the stored file if one exists — best-effort, log on failure
+	if h.storageProvider != nil && doc.StorageKey != "" {
+		if err := h.storageProvider.Delete(ctx, doc.StorageKey); err != nil {
+			logger.Logger.Error("Failed to delete document file from storage",
+				"doc_id", doc.DocID,
+				"storage_key", doc.StorageKey,
+				"error", err.Error())
+		}
 	}
 
 	// Decrement document quota counter

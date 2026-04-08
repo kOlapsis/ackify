@@ -1153,6 +1153,220 @@ func TestHandler_HandleFindOrCreateDocument_ExistingDoc_NoQuotaRecord(t *testing
 	assert.False(t, recorder.recordCalled, "quota record should NOT be called for existing doc")
 }
 
+// ============================================================================
+// TESTS - HandleDeleteMyDocument
+// ============================================================================
+
+// mockAdminService implements the adminService interface for tests.
+type mockAdminService struct {
+	getDocFunc    func(ctx context.Context, docID string) (*models.Document, error)
+	deleteDocFunc func(ctx context.Context, docID string) error
+}
+
+func (m *mockAdminService) GetDocument(ctx context.Context, docID string) (*models.Document, error) {
+	if m.getDocFunc != nil {
+		return m.getDocFunc(ctx, docID)
+	}
+	return testDoc, nil
+}
+
+func (m *mockAdminService) DeleteDocument(ctx context.Context, docID string) error {
+	if m.deleteDocFunc != nil {
+		return m.deleteDocFunc(ctx, docID)
+	}
+	return nil
+}
+
+func (m *mockAdminService) UpdateDocumentMetadata(_ context.Context, _ string, _ models.DocumentInput, _ string) (*models.Document, error) {
+	return testDoc, nil
+}
+
+func (m *mockAdminService) ListExpectedSignersWithStatus(_ context.Context, _ string) ([]*models.ExpectedSignerWithStatus, error) {
+	return nil, nil
+}
+
+func (m *mockAdminService) GetSignerStats(_ context.Context, _ string) (*models.DocCompletionStats, error) {
+	return &models.DocCompletionStats{}, nil
+}
+
+func (m *mockAdminService) AddExpectedSigners(_ context.Context, _ string, _ []models.ContactInfo, _ string) error {
+	return nil
+}
+
+func (m *mockAdminService) RemoveExpectedSigner(_ context.Context, _, _ string) error {
+	return nil
+}
+
+// mockFileDeleter tracks Delete calls for test assertions.
+type mockFileDeleter struct {
+	deletedKeys []string
+	deleteErr   error
+}
+
+func (m *mockFileDeleter) Delete(_ context.Context, key string) error {
+	m.deletedKeys = append(m.deletedKeys, key)
+	return m.deleteErr
+}
+
+func makeDeleteRequest(docID string, user *models.User) *http.Request {
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/users/me/documents/"+docID, nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("docId", docID)
+	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+	if user != nil {
+		ctx = addUserToContext(ctx, user)
+	}
+	return req.WithContext(ctx)
+}
+
+func TestHandler_HandleDeleteMyDocument_DeletesStoredFile(t *testing.T) {
+	t.Parallel()
+
+	storedDoc := &models.Document{
+		DocID:           "doc-with-file",
+		Title:           "Doc With File",
+		CreatedBy:       testUser.Email,
+		StorageKey:      "tenants/abc/doc-with-file.pdf",
+		StorageProvider: "s3",
+	}
+	deleter := &mockFileDeleter{}
+
+	handler := &Handler{
+		authorizer:      newMockAuthorizer([]string{}, false),
+		storageProvider: deleter,
+		adminService: &mockAdminService{
+			getDocFunc: func(_ context.Context, _ string) (*models.Document, error) {
+				return storedDoc, nil
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	handler.HandleDeleteMyDocument(rec, makeDeleteRequest(storedDoc.DocID, testUser))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, deleter.deletedKeys, 1)
+	assert.Equal(t, storedDoc.StorageKey, deleter.deletedKeys[0])
+}
+
+func TestHandler_HandleDeleteMyDocument_NoFileNoStorageCall(t *testing.T) {
+	t.Parallel()
+
+	docWithoutFile := &models.Document{
+		DocID:     "doc-no-file",
+		Title:     "URL-only doc",
+		CreatedBy: testUser.Email,
+		URL:       "https://example.com/doc.pdf",
+		// StorageKey intentionally empty
+	}
+	deleter := &mockFileDeleter{}
+
+	handler := &Handler{
+		authorizer:      newMockAuthorizer([]string{}, false),
+		storageProvider: deleter,
+		adminService: &mockAdminService{
+			getDocFunc: func(_ context.Context, _ string) (*models.Document, error) {
+				return docWithoutFile, nil
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	handler.HandleDeleteMyDocument(rec, makeDeleteRequest(docWithoutFile.DocID, testUser))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, deleter.deletedKeys, "Delete must not be called when doc has no storage key")
+}
+
+func TestHandler_HandleDeleteMyDocument_NoStorageProvider(t *testing.T) {
+	t.Parallel()
+
+	storedDoc := &models.Document{
+		DocID:           "doc-with-file",
+		Title:           "Doc With File",
+		CreatedBy:       testUser.Email,
+		StorageKey:      "tenants/abc/doc-with-file.pdf",
+		StorageProvider: "s3",
+	}
+
+	// No storage provider set — should succeed without panic
+	handler := &Handler{
+		authorizer: newMockAuthorizer([]string{}, false),
+		adminService: &mockAdminService{
+			getDocFunc: func(_ context.Context, _ string) (*models.Document, error) {
+				return storedDoc, nil
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	handler.HandleDeleteMyDocument(rec, makeDeleteRequest(storedDoc.DocID, testUser))
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestHandler_HandleDeleteMyDocument_StorageErrorDoesNotFail(t *testing.T) {
+	t.Parallel()
+
+	storedDoc := &models.Document{
+		DocID:           "doc-with-file",
+		Title:           "Doc With File",
+		CreatedBy:       testUser.Email,
+		StorageKey:      "tenants/abc/doc-with-file.pdf",
+		StorageProvider: "s3",
+	}
+	deleter := &mockFileDeleter{deleteErr: fmt.Errorf("s3 unavailable")}
+
+	handler := &Handler{
+		authorizer:      newMockAuthorizer([]string{}, false),
+		storageProvider: deleter,
+		adminService: &mockAdminService{
+			getDocFunc: func(_ context.Context, _ string) (*models.Document, error) {
+				return storedDoc, nil
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	handler.HandleDeleteMyDocument(rec, makeDeleteRequest(storedDoc.DocID, testUser))
+
+	// Storage error is best-effort: request must still succeed
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Len(t, deleter.deletedKeys, 1, "Delete must still have been attempted")
+}
+
+func TestHandler_HandleDeleteMyDocument_DBErrorSkipsStorageDelete(t *testing.T) {
+	t.Parallel()
+
+	storedDoc := &models.Document{
+		DocID:           "doc-with-file",
+		Title:           "Doc With File",
+		CreatedBy:       testUser.Email,
+		StorageKey:      "tenants/abc/doc-with-file.pdf",
+		StorageProvider: "s3",
+	}
+	deleter := &mockFileDeleter{}
+
+	handler := &Handler{
+		authorizer:      newMockAuthorizer([]string{}, false),
+		storageProvider: deleter,
+		adminService: &mockAdminService{
+			getDocFunc: func(_ context.Context, _ string) (*models.Document, error) {
+				return storedDoc, nil
+			},
+			deleteDocFunc: func(_ context.Context, _ string) error {
+				return fmt.Errorf("db error")
+			},
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	handler.HandleDeleteMyDocument(rec, makeDeleteRequest(storedDoc.DocID, testUser))
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Empty(t, deleter.deletedKeys, "Storage Delete must not be called when DB delete fails")
+}
+
 func Benchmark_detectReferenceType(b *testing.B) {
 	refs := []string{
 		"https://example.com/doc.pdf",

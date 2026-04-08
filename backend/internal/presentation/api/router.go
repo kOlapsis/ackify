@@ -262,6 +262,9 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 		cfg.Authorizer,
 	).WithAdminService(cfg.AdminService, cfg.BaseURL)
 
+	if cfg.StorageProvider != nil {
+		documentsHandler.WithStorageProvider(cfg.StorageProvider)
+	}
 	if cfg.QuotaEnforcer != nil && cfg.TenantProvider != nil {
 		documentsHandler.WithQuotaRecorder(
 			&quotaRecorderAdapter{enforcer: cfg.QuotaEnforcer},
