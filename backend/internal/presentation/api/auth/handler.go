@@ -297,12 +297,10 @@ func (h *Handler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Request) 
 }
 
 // HandleVerifyReminderAuthLink handles GET /api/v1/auth/reminder-link/verify
+// Reminder auth tokens are issued by admins when sending signature reminders. They are
+// independent from the user-facing MagicLink feature: gating only on the underlying token
+// service availability lets reminders work even when MagicLink user-auth is disabled.
 func (h *Handler) HandleVerifyReminderAuthLink(w http.ResponseWriter, r *http.Request) {
-	if !h.authProvider.IsMagicLinkEnabled() {
-		shared.WriteError(w, http.StatusServiceUnavailable, shared.ErrCodeServiceUnavailable, "Magic Link not enabled", nil)
-		return
-	}
-
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		shared.WriteError(w, http.StatusBadRequest, shared.ErrCodeValidation, "Token is required", nil)
