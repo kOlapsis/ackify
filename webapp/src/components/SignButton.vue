@@ -5,11 +5,11 @@
     <button
       v-if="!isSigned"
       @click="handleSign"
-      :disabled="loading || disabled || !docId"
+      :disabled="isButtonDisabled"
       data-testid="sign-button"
       :class="[
         'w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 text-base font-medium rounded-lg transition-all min-h-[48px]',
-        loading || disabled || !docId
+        isButtonDisabled
           ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
           : 'trust-gradient text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 dark:focus:ring-offset-slate-900'
       ]"
@@ -53,7 +53,7 @@
           d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
         />
       </svg>
-      <span>{{ loading ? $t('signButton.signing') : $t('signButton.confirmAction') }}</span>
+      <span>{{ buttonLabel }}</span>
     </button>
 
     <!-- Signed Status -->
@@ -94,7 +94,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useSignatureStore } from '@/stores/signatures'
 import { useAuthStore } from '@/stores/auth'
@@ -119,12 +120,27 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const authStore = useAuthStore()
 const signatureStore = useSignatureStore()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const isSigned = ref(false)
 const signedAt = ref<string | null>(null)
+
+const buttonLabel = computed(() => {
+  if (loading.value) return t('signButton.signing')
+  if (!authStore.isAuthenticated) return t('signButton.mustLogin')
+  return t('signButton.confirmAction')
+})
+
+// Unauthenticated users should be able to click the button to start the auth
+// flow even before the certify checkbox is ticked — they will tick it after login.
+const isButtonDisabled = computed(() => {
+  if (loading.value || !props.docId) return true
+  if (!authStore.isAuthenticated) return false
+  return !!props.disabled
+})
 
 // Check if current user has signed based on signatures list
 async function checkIfSigned() {
@@ -169,14 +185,11 @@ async function handleSign() {
     }
   }
 
-  // If not authenticated, redirect to OAuth login
+  // If not authenticated, send the user to the auth chooser so they can pick
+  // any enabled method (OAuth and/or MagicLink) and come back to the document.
   if (!authStore.isAuthenticated) {
-    try {
-      await authStore.startOAuthLogin(window.location.pathname + window.location.search)
-    } catch (err: any) {
-      error.value = t('signButton.error.authFailed')
-      emit('error', error.value)
-    }
+    const redirect = window.location.pathname + window.location.search
+    await router.push({ name: 'auth-choice', query: { redirect } })
     return
   }
 

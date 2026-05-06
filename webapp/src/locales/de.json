@@ -163,6 +163,11 @@
       "loadFailed": "Laden des Dokuments fehlgeschlagen",
       "loginButton": "Anmelden"
     },
+    "loginPrompt": {
+      "title": "Melden Sie sich an, um dieses Dokument zu bestätigen",
+      "description": "Sie müssen authentifiziert sein, um eine kryptografische Lesebestätigung zu hinterlegen.",
+      "button": "Anmelden"
+    },
     "documentCreation": {
       "restrictedToAdmins": "Nur Administratoren können Dokumente erstellen."
     },

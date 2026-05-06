@@ -163,6 +163,11 @@
       "loadFailed": "Error al cargar el documento",
       "loginButton": "Iniciar sesión"
     },
+    "loginPrompt": {
+      "title": "Inicia sesión para validar este documento",
+      "description": "Debes autenticarte para registrar una confirmación de lectura criptográfica.",
+      "button": "Iniciar sesión"
+    },
     "documentCreation": {
       "restrictedToAdmins": "Solo los administradores pueden crear documentos."
     },

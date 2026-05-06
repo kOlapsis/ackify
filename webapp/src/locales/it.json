@@ -163,6 +163,11 @@
       "loadFailed": "Caricamento documento fallito",
       "loginButton": "Accedi"
     },
+    "loginPrompt": {
+      "title": "Accedi per convalidare questo documento",
+      "description": "Devi essere autenticato per registrare una conferma crittografica di lettura.",
+      "button": "Accedi"
+    },
     "documentCreation": {
       "restrictedToAdmins": "Solo gli amministratori possono creare documenti."
     },

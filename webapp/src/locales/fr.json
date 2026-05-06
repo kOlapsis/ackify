@@ -163,6 +163,11 @@
       "loadFailed": "Échec du chargement du document",
       "loginButton": "Se connecter"
     },
+    "loginPrompt": {
+      "title": "Connectez-vous pour valider ce document",
+      "description": "Vous devez être authentifié pour enregistrer une confirmation cryptographique de lecture.",
+      "button": "Se connecter"
+    },
     "documentCreation": {
       "restrictedToAdmins": "Seuls les administrateurs peuvent créer des documents."
     },

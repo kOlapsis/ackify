@@ -163,6 +163,11 @@
       "loadFailed": "Failed to load document",
       "loginButton": "Sign in"
     },
+    "loginPrompt": {
+      "title": "Sign in to confirm this document",
+      "description": "You need to be authenticated to record a cryptographic confirmation of reading.",
+      "button": "Sign in"
+    },
     "documentCreation": {
       "restrictedToAdmins": "Only administrators can create documents."
     },
