@@ -9,6 +9,11 @@ import { createI18n } from 'vue-i18n'
 
 vi.mock('@/services/http')
 
+const pushMock = vi.fn()
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: pushMock })
+}))
+
 const i18n = createI18n({
   legacy: false,
   locale: 'en',
@@ -17,6 +22,7 @@ const i18n = createI18n({
       signButton: {
         signing: 'Signing...',
         confirmAction: 'Sign Document',
+        mustLogin: 'Sign in to confirm',
         confirmed: 'Signed',
         on: 'on',
         error: {
@@ -32,6 +38,7 @@ describe('SignButton Component', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    pushMock.mockReset()
     delete (window as any).location
     ;(window as any).location = {
       href: '',
@@ -257,11 +264,9 @@ describe('SignButton Component', () => {
   })
 
   describe('Business logic - Authentication requirement', () => {
-    it('should redirect to OAuth login when not authenticated', async () => {
+    it('should redirect to the auth chooser page when not authenticated', async () => {
       const authStore = useAuthStore()
       authStore.initialized = true
-
-      const startOAuthLoginSpy = vi.spyOn(authStore, 'startOAuthLogin').mockResolvedValueOnce()
 
       const wrapper = mountComponent({
         docId: 'doc-123',
@@ -271,7 +276,29 @@ describe('SignButton Component', () => {
       await wrapper.find('button').trigger('click')
       await flushPromises()
 
-      expect(startOAuthLoginSpy).toHaveBeenCalledWith('/document/123?test=true')
+      expect(pushMock).toHaveBeenCalledWith({
+        name: 'auth-choice',
+        query: { redirect: '/document/123?test=true' }
+      })
+    })
+
+    it('should stay clickable when not authenticated even if disabled prop is true', async () => {
+      const authStore = useAuthStore()
+      authStore.initialized = true
+
+      const wrapper = mountComponent({
+        docId: 'doc-123',
+        disabled: true,
+        signatures: []
+      })
+
+      const button = wrapper.find('button')
+      expect(button.attributes('disabled')).toBeUndefined()
+
+      await button.trigger('click')
+      await flushPromises()
+
+      expect(pushMock).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -285,7 +312,16 @@ describe('SignButton Component', () => {
       expect(button.attributes('disabled')).toBeDefined()
     })
 
-    it('should disable button when disabled prop is true', () => {
+    it('should disable button when authenticated and disabled prop is true', () => {
+      const authStore = useAuthStore()
+      authStore.initialized = true
+      authStore.setUser({
+        id: 'user-123',
+        email: 'test@example.com',
+        name: 'Test User',
+        isAdmin: false
+      })
+
       const wrapper = mountComponent({
         docId: 'doc-123',
         disabled: true,
