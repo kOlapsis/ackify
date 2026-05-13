@@ -147,11 +147,12 @@ type RouterConfig struct {
 	StorageQuotaChecker apiStorage.StorageQuotaChecker // Optional, for storage quota enforcement (SaaS)
 
 	// Configuration
-	BaseURL           string
-	AuthRateLimit     int // Global auth rate limit (requests per minute), default: 5
-	DocumentRateLimit int // Document creation rate limit (requests per minute), default: 10
-	GeneralRateLimit  int // General API rate limit (requests per minute), default: 100
-	ImportMaxSigners  int // Maximum signers per CSV import, default: 500
+	BaseURL              string
+	AllowedRedirectHosts []string // Optional allowlist of external hosts accepted as post-auth redirect targets
+	AuthRateLimit        int      // Global auth rate limit (requests per minute), default: 5
+	DocumentRateLimit    int      // Document creation rate limit (requests per minute), default: 10
+	GeneralRateLimit     int      // General API rate limit (requests per minute), default: 100
+	ImportMaxSigners     int      // Maximum signers per CSV import, default: 500
 }
 
 // quotaRecorderAdapter adapts generic QuotaEnforcer to handler-specific QuotaRecorder interfaces.
@@ -253,7 +254,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 	// Initialize handlers
 	healthHandler := health.NewHandler()
 	configHandler := apiConfig.NewHandler(cfg.ConfigService)
-	authHandler := apiAuth.NewHandler(cfg.AuthProvider, apiMiddleware, cfg.BaseURL)
+	authHandler := apiAuth.NewHandler(cfg.AuthProvider, apiMiddleware, cfg.BaseURL, cfg.AllowedRedirectHosts)
 	usersHandler := users.NewHandler(cfg.Authorizer)
 	documentsHandler := documents.NewHandler(
 		cfg.SignatureService,

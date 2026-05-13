@@ -62,18 +62,19 @@ type AuthConfig struct {
 }
 
 type AppConfig struct {
-	BaseURL            string
-	Organisation       string
-	SecureCookies      bool
-	AdminEmails        []string
-	OnlyAdminCanCreate bool
-	OrganisationDomain string   // If set, only users with this email domain can create documents
-	AllowedDomains     []string // Whitelist of allowed domains for document URLs (supports wildcards like *.company.com)
-	SMTPEnabled        bool     // True if SMTP is configured (for email reminders)
-	AuthRateLimit      int      // Global auth rate limit (requests per minute), default: 5
-	DocumentRateLimit  int      // Document creation rate limit (requests per minute), default: 10
-	GeneralRateLimit   int      // General API rate limit (requests per minute), default: 100
-	ImportMaxSigners   int      // Maximum signers per CSV import, default: 500
+	BaseURL              string
+	Organisation         string
+	SecureCookies        bool
+	AdminEmails          []string
+	OnlyAdminCanCreate   bool
+	OrganisationDomain   string   // If set, only users with this email domain can create documents
+	AllowedDomains       []string // Whitelist of allowed domains for document URLs (supports wildcards like *.company.com)
+	AllowedRedirectHosts []string // Optional allowlist of external hosts accepted as post-auth redirect targets
+	SMTPEnabled          bool     // True if SMTP is configured (for email reminders)
+	AuthRateLimit        int      // Global auth rate limit (requests per minute), default: 5
+	DocumentRateLimit    int      // Document creation rate limit (requests per minute), default: 10
+	GeneralRateLimit     int      // General API rate limit (requests per minute), default: 100
+	ImportMaxSigners     int      // Maximum signers per CSV import, default: 500
 }
 
 type DatabaseConfig struct {
@@ -249,6 +250,18 @@ func Load() (*Config, error) {
 			trimmed := strings.TrimSpace(domain)
 			if trimmed != "" {
 				config.App.AllowedDomains = append(config.App.AllowedDomains, trimmed)
+			}
+		}
+	}
+
+	// Parse optional allowlist of external hosts accepted as post-auth redirect targets.
+	// Format: comma-separated hostnames (with optional port), e.g. "partner.com,app.example.com:8443"
+	allowedRedirectHostsStr := getEnv("ACKIFY_ALLOWED_REDIRECT_HOSTS", "")
+	if allowedRedirectHostsStr != "" {
+		for _, h := range strings.Split(allowedRedirectHostsStr, ",") {
+			trimmed := strings.TrimSpace(h)
+			if trimmed != "" {
+				config.App.AllowedRedirectHosts = append(config.App.AllowedRedirectHosts, trimmed)
 			}
 		}
 	}
