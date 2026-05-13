@@ -23,17 +23,19 @@ type middleware interface {
 
 // Handler handles authentication API requests using unified AuthProvider
 type Handler struct {
-	authProvider providers.AuthProvider
-	middleware   middleware
-	baseURL      string
+	authProvider         providers.AuthProvider
+	middleware           middleware
+	baseURL              string
+	allowedRedirectHosts []string
 }
 
 // NewHandler creates a new auth handler with unified AuthProvider
-func NewHandler(authProvider providers.AuthProvider, middleware middleware, baseURL string) *Handler {
+func NewHandler(authProvider providers.AuthProvider, middleware middleware, baseURL string, allowedRedirectHosts []string) *Handler {
 	return &Handler{
-		authProvider: authProvider,
-		middleware:   middleware,
-		baseURL:      baseURL,
+		authProvider:         authProvider,
+		middleware:           middleware,
+		baseURL:              baseURL,
+		allowedRedirectHosts: allowedRedirectHosts,
 	}
 }
 
@@ -75,9 +77,7 @@ func (h *Handler) HandleStartOIDC(w http.ResponseWriter, r *http.Request) {
 		req.RedirectTo = "/"
 	}
 
-	if req.RedirectTo == "" {
-		req.RedirectTo = "/"
-	}
+	req.RedirectTo = shared.SafeRedirectURL(req.RedirectTo, h.allowedRedirectHosts)
 
 	authURL := h.authProvider.StartOIDC(w, r, req.RedirectTo)
 	if authURL == "" {
@@ -111,7 +111,7 @@ func (h *Handler) HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 			nextURL := "/"
 			if len(parts) == 2 {
 				if nb, err := base64.RawURLEncoding.DecodeString(parts[1]); err == nil {
-					nextURL = string(nb)
+					nextURL = shared.SafeRedirectURL(string(nb), h.allowedRedirectHosts)
 				}
 			}
 			http.Redirect(w, r, nextURL, http.StatusFound)
@@ -153,14 +153,7 @@ func (h *Handler) HandleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if nextURL == "" {
-		nextURL = "/"
-	}
-
-	if parsedURL, err := url.Parse(nextURL); err != nil ||
-		(parsedURL.Host != "" && parsedURL.Host != r.Host) {
-		nextURL = "/"
-	}
+	nextURL = shared.SafeRedirectURL(nextURL, h.allowedRedirectHosts)
 
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }
@@ -229,9 +222,7 @@ func (h *Handler) HandleRequestMagicLink(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.RedirectTo == "" {
-		req.RedirectTo = "/"
-	}
+	req.RedirectTo = shared.SafeRedirectURL(req.RedirectTo, h.allowedRedirectHosts)
 
 	ip := extractIP(r.RemoteAddr)
 	userAgent := r.UserAgent()
@@ -288,10 +279,7 @@ func (h *Handler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	redirectTo := result.RedirectTo
-	if redirectTo == "" {
-		redirectTo = "/"
-	}
+	redirectTo := shared.SafeRedirectURL(result.RedirectTo, h.allowedRedirectHosts)
 
 	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
@@ -335,9 +323,7 @@ func (h *Handler) HandleVerifyReminderAuthLink(w http.ResponseWriter, r *http.Re
 	if redirectTo == "" && result.DocID != nil {
 		redirectTo = "/?doc=" + *result.DocID
 	}
-	if redirectTo == "" {
-		redirectTo = "/"
-	}
+	redirectTo = shared.SafeRedirectURL(redirectTo, h.allowedRedirectHosts)
 
 	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
