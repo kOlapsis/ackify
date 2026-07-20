@@ -1062,14 +1062,14 @@ func (h *Handler) HandleGetMyDocumentStatus(w http.ResponseWriter, r *http.Reque
 				resp.LastReminderSent = &lastReminder
 			}
 			response.ExpectedSigners = append(response.ExpectedSigners, resp)
-			expectedEmails[signer.Email] = true
+			expectedEmails[strings.ToLower(signer.Email)] = true
 		}
 	}
 
 	// Get all signatures and find unexpected ones
 	if signatures, err := h.signatureService.GetDocumentSignatures(ctx, docID); err == nil {
 		for _, sig := range signatures {
-			if !expectedEmails[sig.UserEmail] {
+			if !expectedEmails[strings.ToLower(sig.UserEmail)] {
 				userName := sig.UserName
 				response.UnexpectedSignatures = append(response.UnexpectedSignatures, &UnexpectedSignatureResponse{
 					UserEmail:   sig.UserEmail,

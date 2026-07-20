@@ -40,8 +40,11 @@ func (r *ExpectedSignerRepository) AddExpected(ctx context.Context, docID string
 	valueArgs := make([]interface{}, 0, len(contacts)*5)
 
 	for i, contact := range contacts {
+		// Normalize email to lowercase so expected signers match signatures (stored lowercase)
+		// and the ON CONFLICT deduplication is case-insensitive.
+		email := strings.ToLower(strings.TrimSpace(contact.Email))
 		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d)", i*5+1, i*5+2, i*5+3, i*5+4, i*5+5))
-		valueArgs = append(valueArgs, tenantID, docID, contact.Email, contact.Name, addedBy)
+		valueArgs = append(valueArgs, tenantID, docID, email, contact.Name, addedBy)
 	}
 
 	query := fmt.Sprintf(`
@@ -122,8 +125,8 @@ func (r *ExpectedSignerRepository) ListWithStatusByDocID(ctx context.Context, do
 			EXTRACT(DAY FROM (NOW() - es.added_at))::int as days_since_added,
 			EXTRACT(DAY FROM (NOW() - MAX(rl.sent_at)))::int as days_since_last_reminder
 		FROM expected_signers es
-		LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
-		LEFT JOIN reminder_logs rl ON es.tenant_id = rl.tenant_id AND es.doc_id = rl.doc_id AND es.email = rl.recipient_email
+		LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND LOWER(es.email) = LOWER(s.user_email)
+		LEFT JOIN reminder_logs rl ON es.tenant_id = rl.tenant_id AND es.doc_id = rl.doc_id AND LOWER(es.email) = LOWER(rl.recipient_email)
 		WHERE es.doc_id = $1
 		GROUP BY es.id, es.tenant_id, es.doc_id, es.email, es.name, es.added_at, es.added_by, es.notes, s.id, s.signed_at, s.user_name
 		ORDER BY has_signed DESC, es.added_at ASC
@@ -187,7 +190,7 @@ func (r *ExpectedSignerRepository) ListWithStatusByDocID(ctx context.Context, do
 func (r *ExpectedSignerRepository) Remove(ctx context.Context, docID, email string) error {
 	query := `
 		DELETE FROM expected_signers
-		WHERE doc_id = $1 AND email = $2
+		WHERE doc_id = $1 AND LOWER(email) = LOWER($2)
 	`
 
 	result, err := dbctx.GetQuerier(ctx, r.db).ExecContext(ctx, query, docID, email)
@@ -229,7 +232,7 @@ func (r *ExpectedSignerRepository) IsExpected(ctx context.Context, docID, email 
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM expected_signers
-			WHERE doc_id = $1 AND email = $2
+			WHERE doc_id = $1 AND LOWER(email) = LOWER($2)
 		)
 	`
 
@@ -301,7 +304,7 @@ func (r *ExpectedSignerRepository) GetAggregateDocumentStats(ctx context.Context
 				COUNT(s.id) as signed_count
 			FROM expected_signers es
 			JOIN documents d ON es.doc_id = d.doc_id AND es.tenant_id = d.tenant_id
-			LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
+			LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND LOWER(es.email) = LOWER(s.user_email)
 			WHERE d.deleted_at IS NULL%s
 			GROUP BY es.doc_id
 		) sub
@@ -329,7 +332,7 @@ func (r *ExpectedSignerRepository) GetStats(ctx context.Context, docID string) (
 		SELECT
 			(SELECT COUNT(*) FROM expected_signers WHERE doc_id = $1) as expected_count,
 			(SELECT COUNT(*) FROM expected_signers es
-			 JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
+			 JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND LOWER(es.email) = LOWER(s.user_email)
 			 WHERE es.doc_id = $1) as signed_count,
 			(SELECT COUNT(*) FROM signatures WHERE doc_id = $1) as total_signature_count
 	`

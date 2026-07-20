@@ -106,7 +106,7 @@ func (r *ReminderRepository) GetLastReminderByEmail(ctx context.Context, docID, 
 	query := `
 		SELECT id, tenant_id, doc_id, recipient_email, sent_at, sent_by, template_used, status, error_message
 		FROM reminder_logs
-		WHERE doc_id = $1 AND recipient_email = $2
+		WHERE doc_id = $1 AND LOWER(recipient_email) = LOWER($2)
 		ORDER BY sent_at DESC
 		LIMIT 1
 	`
@@ -141,7 +141,7 @@ func (r *ReminderRepository) GetReminderCount(ctx context.Context, docID, email 
 	query := `
 		SELECT COUNT(*)
 		FROM reminder_logs
-		WHERE doc_id = $1 AND recipient_email = $2 AND status = 'sent'
+		WHERE doc_id = $1 AND LOWER(recipient_email) = LOWER($2) AND status = 'sent'
 	`
 
 	var count int
@@ -179,7 +179,7 @@ func (r *ReminderRepository) GetReminderStats(ctx context.Context, docID string)
 	pendingQuery := `
 		SELECT COUNT(*)
 		FROM expected_signers es
-		LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND es.email = s.user_email
+		LEFT JOIN signatures s ON es.tenant_id = s.tenant_id AND es.doc_id = s.doc_id AND LOWER(es.email) = LOWER(s.user_email)
 		WHERE es.doc_id = $1 AND s.id IS NULL
 	`
 

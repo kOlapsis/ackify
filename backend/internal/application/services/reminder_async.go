@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kolapsis/ackify/backend/pkg/logger"
@@ -328,8 +329,9 @@ func (s *ReminderAsyncService) CountSent(ctx context.Context) int {
 }
 
 func containsEmail(emails []string, target string) bool {
+	target = strings.ToLower(strings.TrimSpace(target))
 	for _, e := range emails {
-		if e == target {
+		if strings.ToLower(strings.TrimSpace(e)) == target {
 			return true
 		}
 	}

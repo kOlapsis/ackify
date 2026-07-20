@@ -746,7 +746,7 @@ func (h *Handler) HandleGetDocumentStatus(w http.ResponseWriter, r *http.Request
 	if signers, err := h.adminService.ListExpectedSignersWithStatus(ctx, docID); err == nil {
 		for _, signer := range signers {
 			response.ExpectedSigners = append(response.ExpectedSigners, toExpectedSignerResponse(signer))
-			expectedEmails[signer.Email] = true
+			expectedEmails[strings.ToLower(signer.Email)] = true
 		}
 	}
 
@@ -755,7 +755,7 @@ func (h *Handler) HandleGetDocumentStatus(w http.ResponseWriter, r *http.Request
 		if signatures, err := h.signatureService.GetDocumentSignatures(ctx, docID); err == nil {
 			for _, sig := range signatures {
 				// If this signature's email is not in the expected list, it's unexpected
-				if !expectedEmails[sig.UserEmail] {
+				if !expectedEmails[strings.ToLower(sig.UserEmail)] {
 					userName := sig.UserName
 					response.UnexpectedSignatures = append(response.UnexpectedSignatures, &UnexpectedSignatureResponse{
 						UserEmail:   sig.UserEmail,
