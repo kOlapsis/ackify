@@ -2,6 +2,7 @@ CLAUDE.md
 AGENTS.md
 *SETUP.md
 RELEASE_*.md
+RELEASE-*.md
 .ai
 .claude
 .idea
@@ -17,6 +18,9 @@ compose.cloud.yml
 client_secret*.json
 
 /backend/cmd/community/web/dist
+
+# Stray binary from `go build ./cmd/community` without -o
+/backend/community
 
 # Tailwind CSS
 /bin/tailwindcss
