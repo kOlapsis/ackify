@@ -5,6 +5,187 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.12] - 2026-07-21
+
+### Fixed
+
+- **Correspondance des emails insensible à la casse (#28)**
+  - Un signataire attendu ajouté avec une casse d'email différente de son acquittement (`John.Doe@societe.com` vs `john.doe@societe.com`) restait bloqué en statut « en attente » et son acquittement était signalé comme provenant d'un signataire inattendu
+  - Les emails des signataires attendus sont désormais normalisés (trim + minuscules) à l'insertion
+  - La correspondance signataire ↔ signature ↔ rappel est insensible à la casse (statuts, statistiques, détection des signataires inattendus, throttling des rappels)
+  - Les documents existants sont corrigés à la mise à jour, sans action manuelle
+
+- **Liens de rappel résistants au prefetch des scanners d'emails**
+  - Les scanners de liens (Outlook SafeLinks, Proofpoint, aperçu Gmail…) préchargent les URL en GET et consommaient le token de rappel à usage unique avant même le clic du destinataire, le laissant incapable d'ouvrir et de signer le document
+  - Le GET de vérification est désormais sans effet de bord : en OAuth le destinataire est ré-authentifié auprès du fournisseur d'identité ; en MagicLink seul il arrive sur une page de confirmation dont l'action explicite consomme le token
+  - L'identifiant du document est transporté dans le lien : le destinataire atteint le bon document même si le token a expiré ou a déjà été consommé
+
+### Technical Details
+
+**Nouvelle migration :**
+- `0021_normalize_signer_emails.{up,down}.sql` — passage en minuscules des lignes existantes (`expected_signers`, `reminder_logs`) et index unique insensible à la casse par document
+
+**Nouveaux endpoints / pages :**
+- `POST /api/v1/auth/reminder-link/verify` — confirmation explicite qui consomme le token de rappel
+- Page frontend `/auth/reminder` (5 locales) pour les déploiements MagicLink seul
+
+## [1.3.11] - 2026-05-13
+
+### Security
+
+- **Correction d'open redirect via normalisation des backslash (#27)**
+  - Les navigateurs normalisent `\` en `/` dans l'en-tête `Location` : une URL comme `/\evil.com` était interprétée comme protocol-relative et redirigeait vers un domaine externe, contournant la vérification same-host
+  - La validation des redirections passe désormais par `SafeRedirectURL`, qui rejette explicitement les chemins avec backslash et les URL protocol-relative
+
+- **Liste blanche de redirections externes (`ACKIFY_ALLOWED_REDIRECT_HOSTS`)**
+  - Liste optionnelle (séparée par des virgules) de noms d'hôtes (port optionnel) acceptés comme cibles de redirection post-authentification
+  - Les URL absolues vers des hôtes non listés retombent sur `/` ; vide par défaut (same-origin uniquement), comportement inchangé
+
+### Added
+
+- **Meilleure UX pour les visiteurs non authentifiés sur les liens de document partagés**
+  - Bannière d'invitation à la connexion avec bouton « Se connecter » lorsqu'un document est chargé sans session active
+  - Le bouton de signature redirige vers la page de choix `/auth` au lieu de forcer OAuth, proposant toutes les méthodes activées
+  - Nouvelles clés i18n `sign.loginPrompt.*` (en / fr / de / es / it)
+
+### Fixed
+
+- **Liens d'authentification de rappel fonctionnels quel que soit l'état du MagicLink**
+  - Les tokens de rappel étaient conditionnés à `IsMagicLinkEnabled()`, provoquant une erreur 503 en configuration OAuth seul
+  - Le système de token de rappel est indépendant du MagicLink utilisateur — la condition est retirée
+
+## [1.3.10] - 2026-04-09
+
+### Added
+
+- Suppression automatique du fichier stocké (storage) lors de la suppression d'un document
+
+## [1.3.9] - 2026-04-04
+
+### Added
+
+- Interface `CryptoSigner` et option `WithCryptoSigner` du ServerBuilder (extensibilité de la signature cryptographique)
+
+## [1.3.8] - 2026-04-03
+
+### Added
+
+- Rechargement de la configuration avant de retourner les réglages dans le handler GET admin
+
+### Fixed
+
+- Définition du `tenant_id` sur les tokens magic link pour satisfaire la politique RLS
+
+## [1.3.7] - 2026-03-28
+
+### Fixed
+
+- Repli sur un nettoyage direct des sessions lorsque le contexte tenant est indisponible
+
+## [1.3.6] - 2026-03-20
+
+### Changed
+
+- Simplification de l'email de rappel (le visualiseur de document est désormais sur la page de lecture)
+
+### Fixed
+
+- Suppression du `style-src unsafe-inline` superflu dans les handlers proxy et storage (durcissement CSP)
+- Repli sur `DefaultOptions` pour les champs à valeur nulle de `ChecksumConfig`
+
+## [1.3.5] - 2026-03-14
+
+### Fixed
+
+- Résolution d'un deadlock lorsque l'URL du document est inaccessible
+- Déduction du `ReadMode` depuis le contexte lorsqu'il n'est pas explicitement défini
+
+## [1.3.4] - 2026-03-12
+
+### Changed
+
+- Montée des GitHub Actions en v6 (checkout, setup-node, setup-go, artifacts)
+
+### Fixed
+
+- Désactivation du STARTTLS opportuniste lorsque TLS et StartTLS sont tous deux désactivés
+
+## [1.3.3] - 2026-03-11
+
+### Added
+
+- Restriction de la création de documents par domaine email (`ACKIFY_ORGANISATION_DOMAIN`)
+- Affichage du nombre total de signatures, incluant les signataires inattendus
+- Statistiques agrégées de documents côté serveur (en attente / complétés)
+- Page « documents en attente »
+- Système de quotas générique : quotas webhook, storage et documents
+- Capacité `MagicLinkProvider` pour la vérification de tokens, et journalisation d'audit dans les handlers
+- Option `WithBaseURLProvider` du ServerBuilder (support SaaS multi-tenant)
+
+### Changed
+
+- Migration du package `btouchard/ackify-ce` → `kolapsis/ackify`
+- Remplacement du baseURL fixe par l'interface `BaseURLProvider` dans `ReminderAsyncService`
+- En-têtes `Cache-Control` sur les endpoints documents
+
+### Fixed
+
+- Traitement des tables de queue par les workers de fond avec RLS activé
+- Isolation tenant des webhooks
+- Alignement de la version Go (1.26) et corrections du pipeline CI (covdata, setup-go v5)
+
+## [1.3.2] - 2026-02-05
+
+### Added
+
+- Gestion des signataires attendus par le propriétaire du document
+- Support du healthcheck pour l'image conteneur et documentation API
+
+### Changed
+
+- Renommage du paramètre d'API `ref` → `doc` (compatibilité extensions de confidentialité), avec repli sur `ref`
+
+### Fixed
+
+- Mise à jour du compteur de signatures après signature
+- Restriction de la visibilité de la liste des signatures au propriétaire/admin du document
+
+## [1.3.1] - 2026-01-22
+
+### Fixed
+
+- Repli sur l'extension de fichier pour la détection du content-type des images
+- Persistance des options à l'upload de documents ; configuration dynamique de `OnlyAdminCanCreate`
+
+## [1.3.0] - 2026-01-21
+
+### 🎨 Refonte UI & Stockage de documents
+
+Version majeure : refonte de l'interface (design system « Technical Trust »), stockage de documents intégré et configuration dynamique via API.
+
+### Added
+
+- Refonte complète de l'interface web (design system « Technical Trust »)
+- Stockage de documents et visualiseur PDF intégré
+- Détection MIME améliorée et support du format ODF
+- Création automatique du bucket S3 s'il n'existe pas
+- UI de configuration des tenants avec rechargement à chaud
+- Télémétrie d'usage anonyme (option d'activation dans le script d'installation)
+- Messages d'erreur traduits côté webapp et amélioration de l'affichage du nom d'utilisateur
+- `data-testid` pour fiabiliser les tests e2e
+
+### Changed
+
+- Configuration chargée via l'endpoint `/api/v1/config` au lieu des variables `window`
+- Interface `AuthProvider` unifiée avec configuration dynamique
+- Encapsulation de l'initialisation des services dans `ServerBuilder` et consolidation de l'injection de dépendances
+- Déplacement `internal/domain/models/` → `pkg/models/`
+
+### Fixed
+
+- Utilisation de `dbctx.GetQuerier` dans `MagicLinkRepository` pour le support RLS
+- Nettoyage de code mort, corrections d'installation et traductions manquantes
+
 ## [1.2.8] - 2025-12-15
 
 ### 🔐 Multi-Tenant Security & Row Level Security
@@ -46,6 +227,10 @@ Version majeure de sécurité introduisant l'isolation des données par tenant a
 - Les politiques RLS utilisent `USING` et `WITH CHECK` pour filtrer lectures et écritures
 - Les tokens magic link acceptent `tenant_id IS NULL` pour les requêtes de login
 - Les sessions OAuth sont isolées par tenant après authentification
+
+## [1.2.7] - 2025-12-10
+
+Re-tag de maintenance pointant sur le même commit que la 1.2.6 — aucun changement fonctionnel (republication de version).
 
 ## [1.2.6] - 2025-12-08
 
