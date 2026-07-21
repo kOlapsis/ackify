@@ -30,6 +30,21 @@
     "it": "Italiano"
   },
   "auth": {
+    "reminder": {
+      "title": "Confirmar acceso al documento",
+      "subtitle": "Se le invitó a confirmar que ha leído un documento.",
+      "button": "Continuar al documento",
+      "loading": "Verificando…",
+      "card": {
+        "title": "Confirmación de lectura",
+        "description": "Haga clic para continuar al documento que debe firmar."
+      },
+      "error": {
+        "title": "Enlace no válido o caducado",
+        "message": "Este enlace de confirmación ya no es válido. Pida al remitente que le envíe un nuevo recordatorio.",
+        "continue": "Continuar al documento"
+      }
+    },
     "user": {
       "connectedAs": "Conectado como"
     },

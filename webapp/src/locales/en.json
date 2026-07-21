@@ -30,6 +30,21 @@
     "it": "Italian"
   },
   "auth": {
+    "reminder": {
+      "title": "Confirm document access",
+      "subtitle": "You were invited to confirm that you have read a document.",
+      "button": "Continue to the document",
+      "loading": "Verifying…",
+      "card": {
+        "title": "Reading confirmation",
+        "description": "Click to continue to the document you were asked to sign."
+      },
+      "error": {
+        "title": "Link invalid or expired",
+        "message": "This confirmation link is no longer valid. Ask the sender to send you a new reminder.",
+        "continue": "Continue to the document"
+      }
+    },
     "user": {
       "connectedAs": "Connected as"
     },

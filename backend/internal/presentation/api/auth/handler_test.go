@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -83,6 +84,8 @@ type mockAuthProvider struct {
 	oidcEnabled      bool
 	magicLinkEnabled bool
 	logoutURL        string
+	reminderResult   *providers.MagicLinkResult
+	reminderErr      error
 }
 
 func newMockAuthProvider() *mockAuthProvider {
@@ -172,6 +175,14 @@ func (m *mockAuthProvider) VerifyMagicLink(_ context.Context, _, _, _ string) (*
 }
 
 func (m *mockAuthProvider) VerifyReminderAuthToken(_ context.Context, _, _, _ string) (*providers.MagicLinkResult, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.reminderErr != nil {
+		return nil, m.reminderErr
+	}
+	if m.reminderResult != nil {
+		return m.reminderResult, nil
+	}
 	return &providers.MagicLinkResult{
 		Email:      "test@example.com",
 		RedirectTo: "/",
@@ -930,4 +941,167 @@ func BenchmarkHandler_HandleGetCSRFToken_Parallel(b *testing.B) {
 			handler.HandleGetCSRFToken(rec, req)
 		}
 	})
+}
+
+// ============================================================================
+// TESTS - HandleVerifyReminderAuthLink (GET, side-effect-free)
+// ============================================================================
+
+func TestHandler_HandleVerifyReminderAuthLink_OAuthRedirectsToIdP(t *testing.T) {
+	t.Parallel()
+
+	authProvider := newMockAuthProvider()
+	authProvider.setOIDCEnabled(true)
+	authProvider.setMagicLinkEnabled(false)
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/reminder-link/verify?token=abc&doc=DOC123", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleVerifyReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	location := rec.Header().Get("Location")
+	// Unauthenticated visitor is handed off to the IdP (re-validation), carrying ?doc.
+	assert.Contains(t, location, testAuthURL)
+	assert.Contains(t, location, "doc=DOC123")
+	// No bearer session should be minted from the GET.
+	assert.Nil(t, authProvider.currentUser)
+}
+
+func TestHandler_HandleVerifyReminderAuthLink_OAuthAlreadyAuthenticatedGoesToDoc(t *testing.T) {
+	t.Parallel()
+
+	authProvider := newMockAuthProvider()
+	authProvider.setOIDCEnabled(true)
+	authProvider.currentUser = &types.User{Sub: testUser.Sub, Email: testUser.Email, Name: testUser.Name}
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/reminder-link/verify?token=abc&doc=DOC123", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleVerifyReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.Equal(t, "/?doc=DOC123", rec.Header().Get("Location"))
+}
+
+func TestHandler_HandleVerifyReminderAuthLink_MagicLinkOnlyRedirectsToConfirm(t *testing.T) {
+	t.Parallel()
+
+	authProvider := newMockAuthProvider()
+	authProvider.setOIDCEnabled(false)
+	authProvider.setMagicLinkEnabled(true)
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/reminder-link/verify?token=abc&doc=DOC123", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleVerifyReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.Equal(t, "/auth/reminder?token=abc&doc=DOC123", rec.Header().Get("Location"))
+	// GET must not consume the token nor create a session.
+	assert.Nil(t, authProvider.currentUser)
+}
+
+func TestHandler_HandleVerifyReminderAuthLink_MagicLinkOnlyMissingTokenRedirectsToDoc(t *testing.T) {
+	t.Parallel()
+
+	authProvider := newMockAuthProvider()
+	authProvider.setOIDCEnabled(false)
+	authProvider.setMagicLinkEnabled(true)
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/reminder-link/verify?doc=DOC123", nil)
+	rec := httptest.NewRecorder()
+
+	handler.HandleVerifyReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusFound, rec.Code)
+	assert.Equal(t, "/?doc=DOC123", rec.Header().Get("Location"))
+}
+
+// ============================================================================
+// TESTS - HandleConfirmReminderAuthLink (POST, consumes the token)
+// ============================================================================
+
+func TestHandler_HandleConfirmReminderAuthLink_Success(t *testing.T) {
+	t.Parallel()
+
+	docID := "DOC123"
+	authProvider := newMockAuthProvider()
+	authProvider.reminderResult = &providers.MagicLinkResult{
+		Email: "reader@example.com",
+		DocID: &docID,
+	}
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	body := bytes.NewBufferString(`{"token":"valid-token"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/reminder-link/verify", body)
+	rec := httptest.NewRecorder()
+
+	handler.HandleConfirmReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	var wrapper struct {
+		Data struct {
+			RedirectURL string `json:"redirectUrl"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &wrapper))
+	assert.Equal(t, "/?doc=DOC123", wrapper.Data.RedirectURL)
+
+	// The reminder-auth session uses a dedicated sub namespace, isolated from OAuth.
+	require.NotNil(t, authProvider.currentUser)
+	assert.Equal(t, "reminder:reader@example.com", authProvider.currentUser.Sub)
+	assert.Equal(t, "reader@example.com", authProvider.currentUser.Email)
+}
+
+func TestHandler_HandleConfirmReminderAuthLink_InvalidToken(t *testing.T) {
+	t.Parallel()
+
+	authProvider := newMockAuthProvider()
+	authProvider.reminderErr = errors.New("token expired")
+	handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+	body := bytes.NewBufferString(`{"token":"consumed-or-expired"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/reminder-link/verify", body)
+	rec := httptest.NewRecorder()
+
+	handler.HandleConfirmReminderAuthLink(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Nil(t, authProvider.currentUser)
+}
+
+func TestHandler_HandleConfirmReminderAuthLink_MissingToken(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty token", body: `{"token":""}`},
+		{name: "no token field", body: `{}`},
+		{name: "invalid json", body: `not-json`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			authProvider := newMockAuthProvider()
+			handler := NewHandler(authProvider, createTestMiddleware(), testBaseURL, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/reminder-link/verify", bytes.NewBufferString(tt.body))
+			rec := httptest.NewRecorder()
+
+			handler.HandleConfirmReminderAuthLink(rec, req)
+
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Nil(t, authProvider.currentUser)
+		})
+	}
 }

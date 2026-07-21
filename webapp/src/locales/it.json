@@ -30,6 +30,21 @@
     "it": "Italiano"
   },
   "auth": {
+    "reminder": {
+      "title": "Conferma l'accesso al documento",
+      "subtitle": "Ti è stato chiesto di confermare di aver letto un documento.",
+      "button": "Continua al documento",
+      "loading": "Verifica in corso…",
+      "card": {
+        "title": "Conferma di lettura",
+        "description": "Fai clic per continuare al documento che devi firmare."
+      },
+      "error": {
+        "title": "Link non valido o scaduto",
+        "message": "Questo link di conferma non è più valido. Chiedi al mittente di inviarti un nuovo promemoria.",
+        "continue": "Continua al documento"
+      }
+    },
     "user": {
       "connectedAs": "Connesso come"
     },

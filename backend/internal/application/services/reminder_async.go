@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -190,8 +191,12 @@ func (s *ReminderAsyncService) queueSingleReminder(
 		return fmt.Errorf("failed to create auth token: %w", err)
 	}
 
-	// Construire l'URL d'authentification qui redirigera vers la page de signature
-	authSignURL := fmt.Sprintf("%s/api/v1/auth/reminder-link/verify?token=%s", s.baseURLProvider.GetBaseURL(ctx), token)
+	// Construire l'URL d'authentification qui redirigera vers la page de signature.
+	authSignURL := fmt.Sprintf("%s/api/v1/auth/reminder-link/verify?token=%s&doc=%s",
+		s.baseURLProvider.GetBaseURL(ctx),
+		url.QueryEscape(token),
+		url.QueryEscape(docID),
+	)
 
 	logger.Logger.Debug("Generated auth sign URL for reminder",
 		"doc_id", docID,

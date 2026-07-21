@@ -331,7 +331,9 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 				// Magic Link endpoints (handler checks if enabled dynamically)
 				r.Post("/magic-link/request", authHandler.HandleRequestMagicLink)
 				r.Get("/magic-link/verify", authHandler.HandleVerifyMagicLink)
+				// GET is side-effect-free (survives email link prefetch); the POST consumes the token.
 				r.Get("/reminder-link/verify", authHandler.HandleVerifyReminderAuthLink)
+				r.Post("/reminder-link/verify", authHandler.HandleConfirmReminderAuthLink)
 
 				// Logout endpoint (always available)
 				r.Get("/logout", authHandler.HandleLogout)

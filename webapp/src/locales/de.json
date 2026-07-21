@@ -30,6 +30,21 @@
     "it": "Italienisch"
   },
   "auth": {
+    "reminder": {
+      "title": "Dokumentzugriff bestätigen",
+      "subtitle": "Sie wurden gebeten, die Kenntnisnahme eines Dokuments zu bestätigen.",
+      "button": "Weiter zum Dokument",
+      "loading": "Wird überprüft…",
+      "card": {
+        "title": "Lesebestätigung",
+        "description": "Klicken Sie, um zum zu signierenden Dokument zu gelangen."
+      },
+      "error": {
+        "title": "Link ungültig oder abgelaufen",
+        "message": "Dieser Bestätigungslink ist nicht mehr gültig. Bitten Sie den Absender um eine neue Erinnerung.",
+        "continue": "Weiter zum Dokument"
+      }
+    },
     "user": {
       "connectedAs": "Angemeldet als"
     },

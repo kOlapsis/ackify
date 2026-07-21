@@ -30,6 +30,21 @@
     "it": "Italien"
   },
   "auth": {
+    "reminder": {
+      "title": "Confirmer l'accès au document",
+      "subtitle": "Vous avez été invité à confirmer la lecture d'un document.",
+      "button": "Continuer vers le document",
+      "loading": "Vérification…",
+      "card": {
+        "title": "Confirmation de lecture",
+        "description": "Cliquez pour continuer vers le document que vous devez signer."
+      },
+      "error": {
+        "title": "Lien invalide ou expiré",
+        "message": "Ce lien de confirmation n'est plus valide. Demandez à l'expéditeur de vous renvoyer un rappel.",
+        "continue": "Continuer vers le document"
+      }
+    },
     "user": {
       "connectedAs": "Connecté en tant que"
     },

@@ -7,6 +7,7 @@ const SignaturesPage = () => import('@/pages/SignaturesPage.vue')
 const MyDocumentsPage = () => import('@/pages/MyDocumentsPage.vue')
 const DocumentEditPage = () => import('@/pages/DocumentEditPage.vue')
 const AuthChoicePage = () => import('@/pages/AuthChoicePage.vue')
+const ReminderConfirmPage = () => import('@/pages/ReminderConfirmPage.vue')
 const AdminDashboard = () => import('@/pages/admin/AdminDashboard.vue')
 const AdminDocumentDetail = () => import('@/pages/admin/AdminDocumentDetail.vue')
 const AdminWebhooks = () => import('@/pages/admin/AdminWebhooks.vue')
@@ -26,6 +27,12 @@ const routes: RouteRecordRaw[] = [
     path: '/auth',
     name: 'auth-choice',
     component: AuthChoicePage,
+    meta: { requiresAuth: false }
+  },
+  {
+    path: '/auth/reminder',
+    name: 'reminder-confirm',
+    component: ReminderConfirmPage,
     meta: { requiresAuth: false }
   },
   {

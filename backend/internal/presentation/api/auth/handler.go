@@ -284,38 +284,90 @@ func (h *Handler) HandleVerifyMagicLink(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
 
-// HandleVerifyReminderAuthLink handles GET /api/v1/auth/reminder-link/verify
-// Reminder auth tokens are issued by admins when sending signature reminders. They are
-// independent from the user-facing MagicLink feature: gating only on the underlying token
-// service availability lets reminders work even when MagicLink user-auth is disabled.
+// HandleVerifyReminderAuthLink handles GET /api/v1/auth/reminder-link/verify.
+//
+// This GET is intentionally side-effect-free. Email link scanners (Outlook SafeLinks,
+// Proofpoint, Gmail preview, ...) prefetch URLs with GET and would otherwise consume the
+// single-use reminder token before the recipient ever clicks. Token consumption is
+// therefore deferred to an explicit user action:
+//   - OAuth deployments: hand off to the IdP login so the recipient re-authenticates
+//     against the provider (no bearer session is minted from the link), carrying ?doc.
+//   - MagicLink-only deployments: redirect to a confirmation page that POSTs back to
+//     HandleConfirmReminderAuthLink, which is what actually consumes the token.
+//
+// The doc id travels as a plain query param (it is not sensitive), so the recipient is
+// routed to the right document even when the token is expired or already consumed.
 func (h *Handler) HandleVerifyReminderAuthLink(w http.ResponseWriter, r *http.Request) {
+	docID := r.URL.Query().Get("doc")
 	token := r.URL.Query().Get("token")
+
+	docTarget := "/"
+	if docID != "" {
+		docTarget = "/?doc=" + url.QueryEscape(docID)
+	}
+
+	// OAuth available: re-validate the recipient against the IdP instead of minting a
+	// bearer session. An already-authenticated visitor goes straight to the document
+	// (their session is already IdP-backed).
+	if h.authProvider.IsOIDCEnabled() {
+		if user, err := h.authProvider.GetCurrentUser(r); err == nil && user != nil {
+			http.Redirect(w, r, shared.SafeRedirectURL(docTarget, h.allowedRedirectHosts), http.StatusFound)
+			return
+		}
+		if authURL := h.authProvider.StartOIDC(w, r, docTarget); authURL != "" {
+			http.Redirect(w, r, authURL, http.StatusFound)
+			return
+		}
+		// StartOIDC failed (misconfiguration): fall through to the bearer confirmation path.
+	}
+
 	if token == "" {
+		http.Redirect(w, r, shared.SafeRedirectURL(docTarget, h.allowedRedirectHosts), http.StatusFound)
+		return
+	}
+
+	// MagicLink-only: defer token consumption to an explicit POST from the confirm page.
+	confirm := "/auth/reminder?token=" + url.QueryEscape(token)
+	if docID != "" {
+		confirm += "&doc=" + url.QueryEscape(docID)
+	}
+	http.Redirect(w, r, confirm, http.StatusFound)
+}
+
+// HandleConfirmReminderAuthLink handles POST /api/v1/auth/reminder-link/verify.
+//
+// Explicit recipient confirmation that consumes the single-use reminder token and
+// establishes the reminder-auth session. Kept separate from the GET so that email link
+// scanners cannot consume the token by prefetching the URL. Used by MagicLink-only
+// deployments; OAuth deployments re-validate through the IdP instead (see the GET).
+func (h *Handler) HandleConfirmReminderAuthLink(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Token == "" {
 		shared.WriteError(w, http.StatusBadRequest, shared.ErrCodeValidation, "Token is required", nil)
 		return
 	}
 
 	ip := extractIP(r.RemoteAddr)
 	userAgent := r.UserAgent()
-
 	ctx := r.Context()
-	result, err := h.authProvider.VerifyReminderAuthToken(ctx, token, ip, userAgent)
+
+	result, err := h.authProvider.VerifyReminderAuthToken(ctx, req.Token, ip, userAgent)
 	if err != nil {
-		logger.Logger.Error("Failed to verify reminder auth token", "error", err.Error())
-		http.Redirect(w, r, "/?error=invalid_token", http.StatusFound)
+		logger.Logger.Warn("Failed to verify reminder auth token", "error", err.Error())
+		shared.WriteError(w, http.StatusUnauthorized, shared.ErrCodeUnauthorized, "Invalid or expired link", nil)
 		return
 	}
 
-	// Create user session from reminder auth result
 	user := &types.User{
 		Sub:   "reminder:" + result.Email,
 		Email: result.Email,
 		Name:  result.Email,
 	}
-
 	if err := h.authProvider.SetCurrentUser(w, r, user); err != nil {
 		logger.Logger.Error("Failed to set user session", "error", err.Error())
-		http.Redirect(w, r, "/?error=session_error", http.StatusFound)
+		shared.WriteInternalError(w)
 		return
 	}
 
@@ -325,7 +377,7 @@ func (h *Handler) HandleVerifyReminderAuthLink(w http.ResponseWriter, r *http.Re
 	}
 	redirectTo = shared.SafeRedirectURL(redirectTo, h.allowedRedirectHosts)
 
-	http.Redirect(w, r, redirectTo, http.StatusFound)
+	shared.WriteJSON(w, http.StatusOK, map[string]string{"redirectUrl": redirectTo})
 }
 
 func extractIP(remoteAddr string) string {
